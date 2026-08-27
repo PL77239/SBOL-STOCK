@@ -6,6 +6,15 @@ It is currently set to localhost - to set it up on a server, change the IP and s
 Since the server was never publicly documented, a lot of functionality is trimmed from the game as of now. The freeroam works, along with car-shops, parts-shops, Time attack A/B and all the other "spots".
 Team Area/Center is half-baked in the vsproj, but setting teams up required doing so in a webpage. Player also had to be lvl 10 or higher to create a team. Registration was also webpage-sided, therefore apart from the game itself, a webpage (even local for now) has to be set up to make it possible to create teams and register users. 
 ---------------
+
+SBOL-Battle-Server: This is the server. It contains majority of the packets and dependencies
+SBOL-DB-Server:     This is the DataBase for items, accounts, garage. 
+Game (main folder): This is the game .exe. There is also an .exe.c (decompiled) to find dependencies and connections for packets. 
+SBOL-Dll:           Contains patches and improvements for graphics and sound mainly. 
+MPS-Blowfish:       This deciphers the MPS.
+
+===============
+
 URGENT TO CHECK/FIX; 
 
 1) PVP/PVE Battles  
