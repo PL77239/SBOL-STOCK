@@ -7,8 +7,8 @@ Since the server was never publicly documented, a lot of functionality is trimme
 Team Area/Center is half-baked in the vsproj, but setting teams up required doing so in a webpage. Player also had to be lvl 10 or higher to create a team. Registration was also webpage-sided, therefore apart from the game itself, a webpage (even local for now) has to be set up to make it possible to create teams and register users. 
 ---------------
 
-- SBOL-Battle-Server: This is the server. It contains majority of the packets and dependencies
-- SBOL-DB-Server:     This is the DataBase for items, accounts, garage. 
+- SBOL-Battle-Server: This is the server. It contains majority of the packets, scripts and dependencies
+- SBOL-DB-Server:     This is the DataBase for items, accounts, garage etc.
 - Game (main folder): This is the game .exe. There is also an .exe.c (decompiled) to find dependencies and connections for packets. 
 - SBOL-Dll:           Contains patches and improvements for graphics and sound mainly. 
 - MPS-Blowfish:       This deciphers the MPS.
