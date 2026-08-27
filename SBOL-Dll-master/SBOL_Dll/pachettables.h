@@ -1,0 +1,23 @@
+#pragma once
+#include <Windows.h>
+#include <cstdint>
+
+int32_t* Packet0100Table[]{
+	(int32_t*)0x0043CB37, // 0x0180
+	(int32_t*)0x0043D282, // 0x0181
+	(int32_t*)0x0043CB77, // 0x0182
+	(int32_t*)0x0043D282, // 0x0183
+	(int32_t*)0x0043D282, // 0x0184
+	(int32_t*)0x0043D282, // 0x0185
+	(int32_t*)0x0043D282, // 0x0186
+	(int32_t*)0x0043D282, // 0x0187
+	(int32_t*)0x0043D282, // 0x0188
+	(int32_t*)0x0043D282, // 0x0189
+	(int32_t*)0x0043D282, // 0x018A
+	(int32_t*)0x0043D282, // 0x018B
+	(int32_t*)0x0043D282, // 0x018C
+	(int32_t*)0x0043D282, // 0x018D
+	(int32_t*)0x0043D282, // 0x018E
+	(int32_t*)0x0043D282, // 0x018F
+	(int32_t*)Packet0190Handler // 0x0190
+};

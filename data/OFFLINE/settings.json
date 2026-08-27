@@ -1,0 +1,12 @@
+{
+	"routetables" : [
+		{ "c1_inner" : "table1" },
+		{ "c1_outer" : "table2" },
+		{ "shinkanjo_inner" : "table3" },
+		{ "shinkanjo_outer" : "table4" },
+		{ "wangan_inner" : "table5" },
+		{ "wangan_outer" : "table6" },
+		{ "yokohane_inner" : "table7" },
+		{ "yokohane_outer" : "table8" }
+	]
+}
