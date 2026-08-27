@@ -4,8 +4,7 @@ It was primarly a MMO game based on MPS (MassPlayerSystem). There is also Blowfi
 It is currently set to localhost - to set it up on a server, change the IP and settings in the SERVERS.INI for the server's sided ones. There was also one line with "localhost" in the csproj, which when left unchanged disabled entering shops and other courses for other players. Might have to be changed to the server's IP too. 
 
 Since the server was never publicly documented, a lot of functionality is trimmed from the game as of now. The freeroam works, along with car-shops, parts-shops, Time attack A/B and all the other "spots".
-Team Area/Center is half-baked in the vsproj, but setting teams up required doing so in a webpage. Player also had to be lvl 10 or higher to create a team. Registration was also webpage-sided,
-therefore apart from the game itself, a webpage (even local for now) has to be set up to make it possible to create teams and register users. 
+Team Area/Center is half-baked in the vsproj, but setting teams up required doing so in a webpage. Player also had to be lvl 10 or higher to create a team. Registration was also webpage-sided, therefore apart from the game itself, a webpage (even local for now) has to be set up to make it possible to create teams and register users. 
 ---------------
 URGENT TO CHECK/FIX; 
 
