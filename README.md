@@ -1,17 +1,19 @@
-This repo represents the game "Shutokou Battle Online" made by Genki and ran throughout 2002-2005. 
-It was primarly a MMO game based on MPS (MassPlayerSystem). There is also Blowfish for MPS in this repo.
+This repo represents the game "Shutokou Battle Online" made by Genki and ran throughout 2002-2005. Heavily server-sided.
+It was primarly a MMO game based on MPS (MassPlayerSystem). There is also Blowfish for decyphering MPS in this repo.
 
-It is currently set to localhost - to set it up on a server, change the IP and settings in the SERVERS.INI for the server's sided. There was also one line with "localhost" in the csproj, which when left
-unchanged disabled entering shops and other courses for other players. Might have to be changed to the server's IP too. 
+It is currently set to localhost - to set it up on a server, change the IP and settings in the SERVERS.INI for the server's sided ones. There was also one line with "localhost" in the csproj, which when left unchanged disabled entering shops and other courses for other players. Might have to be changed to the server's IP too. 
 
 Since the server was never publicly documented, a lot of functionality is trimmed from the game as of now. The freeroam works, along with car-shops, parts-shops, Time attack A/B and all the other "spots".
 Team Area/Center is half-baked in the vsproj, but setting teams up required doing so in a webpage. Player also had to be lvl 10 or higher to create a team. Registration was also webpage-sided,
 therefore apart from the game itself, a webpage (even local for now) has to be set up to make it possible to create teams and register users. 
-
+---------------
 URGENT TO CHECK/FIX; 
 
-PVP/PVE Battles  |  Teams creation and their functionality  |  Packets (some are unassigned)  |  Sound (BGM is too loud, and car sounds are inaudible regardless of ini settings)
-
+1) PVP/PVE Battles  
+2) Teams creation and their functionality  
+3) Packets (some are unassigned)
+4) Sound (BGM is too loud, and car sounds are inaudible regardless of ini settings)
+---------------
 (from the private server creator):
 0x0400 is the packets that tell other players of status changes
 But I use them also to mark the player as in course and leaving
@@ -35,3 +37,8 @@ How are objects placed onto the maps (instances)?
 
 --------------
 
+The time attack routes A/B are similiar, but only one displays sections, time, start and finish. For time attack A it's safe to set the reward time at 4:10 for now, as it rewards the player with CP and EXP which are necessary. Check why B isn't loading.
+
+--------------
+
+As of now, if I was to set a number of NPC Rivals it's an amount that spawns when the player enters the course. Could it be possible to make them spawn in randomly or actively in a X drawing distance of the player? 
