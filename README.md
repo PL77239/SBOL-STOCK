@@ -17,8 +17,10 @@ Team Area/Center is half-baked in the vsproj, but setting teams up required doin
 URGENT TO CHECK/FIX; 
 
 1) PVP/PVE Battles  (working in Offline, issues in Online - check the note below)
+     - EXP rewards for defeating NPC's and other Players
 2) Teams creation and their functionality  
 3) Packets (some are unassigned)
+     - On the online version when you leave beginner it connects to the server again without a password so fails to authenticate. But if you close game and login again it'll enter the main course. There's 2 calls to the 0x100 packets one for initial connect and another for reconnect. So some reason it doesn't send the packet with the password the 2nd time
 4) Sound (BGM is too loud, and car sounds are inaudible regardless of ini settings)
 5) When in SAFEMODE, after switching tabs to other than the game it tends to still catch the keypresses causing the car to constantly hit/spin
 6) Create a short functionality documentation based on packets (what is responsible for what action)
