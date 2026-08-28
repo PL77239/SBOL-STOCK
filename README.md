@@ -16,14 +16,15 @@ Team Area/Center is half-baked in the vsproj, but setting teams up required doin
 ---------------
 URGENT TO CHECK/FIX; 
 
-1) PVP/PVE Battles  
+1) PVP/PVE Battles  (working in Offline, issues in Online - check the note below)
 2) Teams creation and their functionality  
 3) Packets (some are unassigned)
 4) Sound (BGM is too loud, and car sounds are inaudible regardless of ini settings)
 5) When in SAFEMODE, after switching tabs to other than the game it tends to still catch the keypresses causing the car to constantly hit/spin
 6) Create a short functionality documentation based on packets (what is responsible for what action)
 ---------------
-(from the private server creator):
+PvE/PvP (note from the private server creator):
+
 0x0400 is the packets that tell other players of status changes
 But I use them also to mark the player as in course and leaving
 Rival and player battle code is working in those repos
