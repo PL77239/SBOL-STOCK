@@ -24,6 +24,8 @@ URGENT TO CHECK/FIX;
 4) Sound (BGM is too loud, and car sounds are inaudible regardless of ini settings)
 5) When in SAFEMODE, after switching tabs to other than the game it tends to still catch the keypresses causing the car to constantly hit/spin
 6) Create a short functionality documentation based on packets (what is responsible for what action)
+7) EXP Rewards for completing time attacks based (for times under 4:10min)
+8) After defeating a Player, an item reward should drop. It supposedly does, but doesn't appear when defeating a rival.
 ---------------
 PvE/PvP (note from the private server creator):
 
