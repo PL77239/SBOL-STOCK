@@ -12,7 +12,7 @@ Team Area/Center is half-baked in the vsproj, but setting teams up required doin
 - Game (main folder): This is the game .exe. There is also an .exe.c (decompiled) to find dependencies and connections for packets. 
 - SBOL-Dll:           Contains patches and improvements for graphics and sound mainly. 
 - MPS-Blowfish:       This deciphers the MPS.
-
+- Offline.dll:        This file has to be deleted in order to play online. Has a lot of fixes (like only 2 cars to choose from when starting as a new player, survival arena etc as an endurance race etc.) 
 ---------------
 URGENT TO CHECK/FIX; 
 
