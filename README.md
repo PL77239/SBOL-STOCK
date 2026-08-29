@@ -17,7 +17,7 @@ Team Area/Center is half-baked in the vsproj, but setting teams up required doin
 URGENT TO CHECK/FIX; 
 
 1) PVP/PVE Battles - randomize the rewards. CP/EXP are based on rival's level with a multiplier applied. Random tickets (items) can drop, but so far they seem to be repetitive.
-2) Teams creation and their functionality - This also needs a webpage for user registration and teams creation/management. So far it can be done by commands in cmd/powershell ("SBOL Battle Server.exe" /createaccount). Database is set on SQLite.
+2) Teams creation and their functionality - This also needs a webpage for user registration and teams creation/management. So far it can be done by commands in cmd/powershell ("SBOL Battle Server.exe" /createaccount). Database is set on SQLite. When entering TEAM CENTER, there's a message "Agree to TA Terms to continue". Presumably, these were also available on genki's webpage but there's no traces of that. 
 3) Packets (some are unassigned)
      - On the online version when you leave beginner it connects to the server again without a password so fails to authenticate. But if you close game and login again it'll enter the main course. There's 2 calls to the 0x100 packets one for initial connect and another for reconnect. So some reason it doesn't send the packet with the password the 2nd time
 4) Sound (BGM is too loud, and car sounds are inaudible regardless of ini settings). Check for compatibility if imported from games like Tokyo Xtreme Racer 0.
