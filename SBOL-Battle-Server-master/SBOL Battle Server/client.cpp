@@ -839,10 +839,15 @@ bool Client::purchasePart(uint32_t bay, uint8_t itemCategory, uint8_t itemType, 
 	}
 	return false;
 }
-void Client::addItem(int16_t itemID)
+bool Client::addItem(int16_t itemID)
 {
-	if(itemID >= 0)
-		itembox.push_back(itemID);
+	// The client only ever displays ITEMBOX_LIMIT items, so anything past that is lost anyway.
+	// Report the failure so callers don't tell the player about an item they never received.
+	if (itemID < 0 || itembox.size() >= ITEMBOX_LIMIT)
+		return false;
+
+	itembox.push_back(itemID);
+	return true;
 }
 bool Client::removeItem(uint16_t itemID)
 {
@@ -949,9 +954,33 @@ void Client::processBattleWin()
 	{
 		if (currentRival)
 		{
-			addExp(currentRival->WinXP(battle.KMs, battle.SP));
-			giveCP(currentRival->WinCP(battle.KMs));
-			addItem(currentRival->WinReward());
+			// Roll the rewards once here and keep them. SendBattleNPCFinish replays these values
+			// into the result packet instead of re-rolling them.
+			bool firsttime = (hasBeatenRival(currentRival) == false);
+
+			battle.rewardExp = currentRival->WinXP(battle.KMs, battle.SP);
+			battle.rewardCP = currentRival->WinCP(battle.KMs, firsttime);
+
+			int16_t item = currentRival->WinReward();
+			battle.rewardItem = addItem(item) ? item : -1;
+
+			addExp(battle.rewardExp);
+			giveCP(battle.rewardCP);
+			careerdata.level = getLevel();
+
+			logger->Log(Logger::LOGTYPE_CLIENT, L"Client %s (%u / %s) with ID %u has beaten rival %u (level %u). %u Exp, %u CP, item %d. %0.2f Kms, %u SP remaining.",
+				logger->toWide(handle).c_str(),
+				driverslicense,
+				logger->toWide((char*)&IP_Address).c_str(),
+				courseID,
+				currentRival->GetRivalID(),
+				currentRival->GetLevel(),
+				battle.rewardExp,
+				battle.rewardCP,
+				battle.rewardItem,
+				battle.KMs,
+				battle.SP);
+
 			if (careerdata.rivalWin < 0xFFFF)
 				careerdata.rivalWin++;
 			if(currentRival->GetCustom() == false)
@@ -986,9 +1015,16 @@ void Client::processBattleLose()
 	{
 		if (currentRival)
 		{
-			addExp(currentRival->LoseXP());
-			giveCP(currentRival->LoseCP(battle.KMs));
-			addItem(currentRival->LoseReward());
+			battle.rewardExp = currentRival->LoseXP(battle.KMs);
+			battle.rewardCP = currentRival->LoseCP(battle.KMs);
+
+			int16_t item = currentRival->LoseReward();
+			battle.rewardItem = addItem(item) ? item : -1;
+
+			addExp(battle.rewardExp);
+			giveCP(battle.rewardCP);
+			careerdata.level = getLevel();
+
 			if (careerdata.rivalLose < 0xFFFF)
 				careerdata.rivalLose++;
 			if (currentRival->GetCustom() == false)
@@ -1090,6 +1126,9 @@ void Client::clearBattle()
 	battle.timeout = 0;
 	battle.challenger = nullptr;
 	battle.initiator = false;
+	battle.rewardExp = 0;
+	battle.rewardCP = 0;
+	battle.rewardItem = -1;
 	if (currentRival != nullptr)
 		currentRival = nullptr;
 }
@@ -1183,7 +1222,12 @@ void Client::clearRivals()
 }
 void Client::setRivalStatus(uint32_t TeamID, uint8_t MemberID, uint8_t Status)
 {
-	if (TeamID > (sizeof(careerdata.rivalStatus) / sizeof(RIVAL_STATUS)) || MemberID > 7 || (currentRival && currentRival->GetCustom()))
+	// Member IDs in the rival files are unique across the whole set (LITTLE GANG is 24 - 31, not
+	// 0 - 7), so they have to be reduced to the in team slot, exactly as the rivalID is built in
+	// LoadRivalFile. Rejecting MemberID > 7 here meant nothing above team 0 was ever recorded.
+	MemberID %= 8;
+
+	if (TeamID >= (sizeof(careerdata.rivalStatus) / sizeof(RIVAL_STATUS)) || (currentRival && currentRival->GetCustom()))
 		return;
 
 	if (Status == Rival::RIVALSTATUS::RS_WON)
@@ -1192,6 +1236,19 @@ void Client::setRivalStatus(uint32_t TeamID, uint8_t MemberID, uint8_t Status)
 	if ((careerdata.rivalStatus[TeamID].rivalMember[MemberID] != Rival::RIVALSTATUS::RS_WON) ||
 		(careerdata.rivalStatus[TeamID].rivalMember[MemberID] == Rival::RIVALSTATUS::RS_HIDDEN && Status == Rival::RIVALSTATUS::RS_SHOW))
 		careerdata.rivalStatus[TeamID].rivalMember[MemberID] = Status;
+}
+bool Client::hasBeatenRival(Rival* rival)
+{
+	if (rival == nullptr || rival->GetCustom())
+		return false;
+
+	uint32_t teamID = rival->GetTeamData().teamID;
+	uint8_t memberID = (uint8_t)(rival->GetTeamData().memberID % 8);
+
+	if (teamID >= (sizeof(careerdata.rivalStatus) / sizeof(RIVAL_STATUS)))
+		return false;
+
+	return careerdata.rivalStatus[teamID].rivalMember[memberID] == Rival::RIVALSTATUS::RS_WON;
 }
 int32_t Client::getSign(uint16_t id)
 {
@@ -2170,6 +2227,9 @@ void Client::SendBattleChallengeNPC(uint16_t RivalID, uint32_t _time)
 	battle.initiator = true;
 	battle.spCount = 0;
 	battle.timeout = 0;
+	battle.rewardExp = 0;
+	battle.rewardCP = 0;
+	battle.rewardItem = -1;
 	currentRival = getRival(RivalID);
 
 	if (currentRival != nullptr)
@@ -2362,11 +2422,14 @@ void Client::SendBattleNPCFinish()
 	outbuf.setType(0x500);
 	outbuf.setSubType(0x586);
 	outbuf.append<uint8_t>(getLevel());// (battle.status == BATTLESTATUS::WON) ? 0 : 1);
-	outbuf.append<uint32_t>((battle.status == Client::BATTLESTATUS::BS_WON) ? currentRival->WinXP(battle.KMs, battle.SP) : currentRival->LoseXP(battle.KMs)); // XP Gained
+	// Rewards were rolled and banked by processBattleWin / processBattleLose above. Report those
+	// exact values - re-calling WinXP / WinCP / WinReward here would re-roll the randomisation
+	// and show the player numbers and an item that were never actually granted.
+	outbuf.append<uint32_t>(battle.rewardExp); // XP Gained
 	outbuf.append<uint8_t>(careerdata.experiencePercent); // XP Percentage
-	outbuf.append<uint32_t>((battle.status == Client::BATTLESTATUS::BS_WON) ? currentRival->WinCP(battle.KMs) : currentRival->LoseCP(battle.KMs)); // CP
+	outbuf.append<uint32_t>(battle.rewardCP); // CP
 	outbuf.append<uint32_t>(0); // ???
-	outbuf.append<int16_t>((battle.status == Client::BATTLESTATUS::BS_WON) ? currentRival->WinReward() : currentRival->LoseReward()); // Item
+	outbuf.append<int16_t>(battle.rewardItem); // Item
 	outbuf.append<uint8_t>(0); // For Survival?
 	Send();
 	clearBattle();

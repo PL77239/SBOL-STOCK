@@ -9,6 +9,7 @@
 			"name" : "Keisuke",
 			"carid" : 59,
 			"leader" : true,
+			"level" : 30,
 			"cp" : 50,
 			"routetable" : 1,
 			"rewardtable" : 0,

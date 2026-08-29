@@ -3,6 +3,70 @@
 #include "RouteTables.h"
 #include "RivalTables.h"
 #include <iostream>
+#include <random>
+
+#define ARRAYCOUNT(x) (uint32_t)(sizeof(x) / sizeof((x)[0]))
+
+namespace {
+	// A ticket table is a struct of fixed size arrays, one per part category, padded with -1.
+	struct TICKETCATEGORY {
+		const int16_t* entries;
+		uint32_t count;
+	};
+	const uint32_t TICKET_CATEGORY_COUNT = 17;
+	const uint32_t TICKET_CATEGORY_MAX_ENTRIES = 16;
+
+	// rand() / srand() keep per thread state under MSVC, so worker threads would all replay
+	// the same sequence from the default seed. Give every thread its own seeded generator.
+	std::mt19937& RewardRNG()
+	{
+		static thread_local std::mt19937 rng((uint32_t)std::random_device{}() ^ (uint32_t)timeGetTime());
+		return rng;
+	}
+	// 0.0 .. 100.0
+	float RandomPercent()
+	{
+		std::uniform_real_distribution<float> distribution(0.0f, 100.0f);
+		return distribution(RewardRNG());
+	}
+	// 0 .. count - 1
+	uint32_t RandomIndex(uint32_t count)
+	{
+		if (count < 2) return 0;
+		std::uniform_int_distribution<uint32_t> distribution(0, count - 1);
+		return distribution(RewardRNG());
+	}
+	// Applies a +/- variance to a reward so repeat battles never pay out exactly the same
+	uint32_t Vary(uint32_t value, float variance)
+	{
+		if (value == 0) return 0;
+		std::uniform_real_distribution<float> distribution(1.0f - variance, 1.0f + variance);
+		uint32_t varied = (uint32_t)((float)value * distribution(RewardRNG()));
+		return (varied < 1) ? 1 : varied;
+	}
+	uint32_t GetTicketCategories(const PARTTICKETTABLE* table, TICKETCATEGORY* categories)
+	{
+		uint32_t count = 0;
+		categories[count].entries = table->engine;			categories[count++].count = ARRAYCOUNT(table->engine);
+		categories[count].entries = table->muffler;			categories[count++].count = ARRAYCOUNT(table->muffler);
+		categories[count].entries = table->transmission;	categories[count++].count = ARRAYCOUNT(table->transmission);
+		categories[count].entries = table->differential;	categories[count++].count = ARRAYCOUNT(table->differential);
+		categories[count].entries = table->suspension;		categories[count++].count = ARRAYCOUNT(table->suspension);
+		categories[count].entries = table->body;			categories[count++].count = ARRAYCOUNT(table->body);
+		categories[count].entries = table->frontBumper;		categories[count++].count = ARRAYCOUNT(table->frontBumper);
+		categories[count].entries = table->bonnet;			categories[count++].count = ARRAYCOUNT(table->bonnet);
+		categories[count].entries = table->overFender;		categories[count++].count = ARRAYCOUNT(table->overFender);
+		categories[count].entries = table->mirror;			categories[count++].count = ARRAYCOUNT(table->mirror);
+		categories[count].entries = table->sideSkirt;		categories[count++].count = ARRAYCOUNT(table->sideSkirt);
+		categories[count].entries = table->rearBumper;		categories[count++].count = ARRAYCOUNT(table->rearBumper);
+		categories[count].entries = table->rearSpoiler;		categories[count++].count = ARRAYCOUNT(table->rearSpoiler);
+		categories[count].entries = table->grill;			categories[count++].count = ARRAYCOUNT(table->grill);
+		categories[count].entries = table->lights;			categories[count++].count = ARRAYCOUNT(table->lights);
+		categories[count].entries = table->tireBrakes;		categories[count++].count = ARRAYCOUNT(table->tireBrakes);
+		categories[count].entries = table->bodyColour;		categories[count++].count = ARRAYCOUNT(table->bodyColour);
+		return count;
+	}
+}
 
 Rival::Rival()
 {
@@ -25,12 +89,12 @@ Rival::~Rival()
 void Rival::Random(int32_t Difficulty)
 {
 	// total rival count in RandomRivals table
-	int maxRandomRivals = sizeof(RandomRivals) / sizeof(RIVALDATA);
+	uint32_t maxRandomRivals = ARRAYCOUNT(RandomRivals);
 
 	if (maxRandomRivals > 0)
 	{
 		// randomly select a rival from the RandomRivals table (0 to maxRandomRivals - 1)
-		int randomIndex = rand() % maxRandomRivals;
+		uint32_t randomIndex = RandomIndex(maxRandomRivals);
 
 		// TODO: optionally, filter by Difficulty level if needed
 
@@ -156,7 +220,7 @@ uint32_t Rival::WinCP(float distance, bool firsttime, float boost)
 	uint32_t CP = settings.cp * (firsttime ? 4 : 3);
 	CP += (uint32_t)(distance / 1000.0f) * 10;
 	CP = (uint32_t)((float)CP * (boost + 1.0f));
-	return CP;
+	return Vary(CP, REWARD_VARIANCE);
 }
 
 uint32_t Rival::LoseCP(float distance, bool firsttime, float boost)
@@ -164,17 +228,28 @@ uint32_t Rival::LoseCP(float distance, bool firsttime, float boost)
 	uint32_t CP = 0;
 	CP += (uint32_t)(distance / 1000.0f) * 10;
 	CP = (uint32_t)((float)CP * (boost + 1.0f));
-	return CP;
+	return Vary(CP, REWARD_VARIANCE);
 }
 
 int16_t Rival::WinReward(float boost)
 {
-	int16_t ticket = CarTicket();
-
-	// if rivals car has a ticket that can be obtained, return it
-	if (ticket != -1)
+	// 1) Roll for the rival's own car ticket. rewardChance comes from the rival JSON files:
+	//    gang leaders are set to 100%, ordinary members to roughly 9 - 15%.
+	if (RandomPercent() < (settings.rewardChance * (boost + 1.0f)))
 	{
-		return ticket;
+		int16_t ticket = CarTicket();
+
+		// if rivals car has a ticket that can be obtained, return it
+		if (ticket != -1)
+		{
+			return ticket;
+		}
+	}
+
+	// 2) Otherwise roll for a part ticket out of this rival's ticket table
+	if (RandomPercent() < (PARTTICKET_CHANCE * (boost + 1.0f)))
+	{
+		return PartTicket();
 	}
 
 	// no reward available
@@ -201,7 +276,7 @@ int16_t Rival::CarTicket()
 {
 	// Does rivals car have a ticket that can be obtained?
 
-	if (settings.carID < (sizeof(CARTICKET_LOOKUP) / sizeof(int16_t)))
+	if (settings.carID >= 0 && settings.carID < (int16_t)ARRAYCOUNT(CARTICKET_LOOKUP))
 	{
 		return CARTICKET_LOOKUP[settings.carID];
 	}
@@ -210,9 +285,56 @@ int16_t Rival::CarTicket()
 	return -1;
 }
 
+int16_t Rival::PartTicket()
+{
+	// rewardTable selects the ticket class, commonTable the manufacturer sub table.
+	// Class C only has the one generic table so commonTable is unused for it.
+	// Manufacturer order matches ITEM.DAT: 0 Generic, 1 Toyota, 2 Nissan, 3 Mitsubishi, 4 Mazda.
+	const PARTTICKETTABLE* table = nullptr;
+
+	switch (settings.rewardTable)
+	{
+	case 0:
+		table = &Class_C_TicketTable;
+		break;
+	case 1:
+		if (settings.commonTable >= 0 && settings.commonTable < (int32_t)ARRAYCOUNT(Class_B_TicketTable))
+			table = &Class_B_TicketTable[settings.commonTable];
+		else
+			table = &Class_B_TicketTable[0];
+		break;
+	default:
+		// TODO: no class A ticket table exists yet (ITEM.DAT items 323+)
+		return -1;
+	}
+
+	TICKETCATEGORY categories[TICKET_CATEGORY_COUNT];
+	uint32_t categoryCount = GetTicketCategories(table, categories);
+
+	// Pick a random part category, then a random ticket within it. -1 entries are padding.
+	// Categories that are entirely padding (the manufacturer tables have several) are re-rolled.
+	for (uint32_t attempt = 0; attempt < categoryCount; attempt++)
+	{
+		const TICKETCATEGORY& category = categories[RandomIndex(categoryCount)];
+		int16_t valid[TICKET_CATEGORY_MAX_ENTRIES];
+		uint32_t validCount = 0;
+
+		for (uint32_t i = 0; i < category.count && validCount < TICKET_CATEGORY_MAX_ENTRIES; i++)
+		{
+			if (category.entries[i] >= 0) valid[validCount++] = category.entries[i];
+		}
+
+		if (validCount > 0) return valid[RandomIndex(validCount)];
+	}
+
+	// No ticket available in this table
+	return -1;
+}
+
 uint32_t Rival::WinXP(float distance, uint32_t remainingSP)
 {
-	// 5 points per level
+	// 8 points per rival level. Levels come from the "level" field in the data/rivals JSON files,
+	// which ladder from 2 (ROLLING GUY members) up to 50 (TEAM DOREMI leader).
 	uint32_t baseXP = settings.level * 8;
 
 	// if leader, double the base XP
@@ -229,7 +351,7 @@ uint32_t Rival::WinXP(float distance, uint32_t remainingSP)
 	// bonus for distance, 2 XP per km
 	XP += (uint32_t)(distance / 1000.0f) * 2;
 
-	return XP;
+	return Vary(XP, REWARD_VARIANCE);
 }
 
 uint32_t Rival::LoseXP(float distance)
@@ -239,5 +361,5 @@ uint32_t Rival::LoseXP(float distance)
 	uint32_t XP = settings.level;
 	XP += (uint32_t)(distance / 1000.0f) * 1;
 
-	return XP;
+	return Vary(XP, REWARD_VARIANCE);
 }

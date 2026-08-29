@@ -147,6 +147,11 @@ void ClientPacketBattle(Client* client)
 				client->logger->toWide((char*)&client->IP_Address).c_str(),
 				client->courseID,
 				_1, _2, _3, _4);
+			// _4 is the player's remaining SP at the line. The EXP reward is scaled by it, so take
+			// it from here rather than leaving battle.SP on the last 0x503 update (or on the
+			// initial 5,000,000 when no 0x503 arrived at all).
+			client->battle.SP = min(_4, (uint32_t)INITIALBATTLE_SP);
+
 			if (_3 < _4) client->battle.status = Client::BATTLESTATUS::BS_WON;
 			else client->battle.status = Client::BATTLESTATUS::BS_LOST;
 			client->SendBattleNPCFinish();

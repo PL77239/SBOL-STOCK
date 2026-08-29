@@ -1311,7 +1311,11 @@ void Server::LoadRivalFile()
 						rival.teamData.memberID = member["id"].get<uint32_t>();
 						rival.rivalID = (rival.teamData.teamID * 8) + (rival.teamData.memberID % 8);
 
-						rival.level = 1;
+						// Rival level drives the battle EXP reward. Older rival files predate the
+						// "level" field, so fall back to 1 rather than refusing to load them.
+						rival.level = member.value("level", (uint32_t)1);
+						if (rival.level < 1) rival.level = 1;
+						if (rival.level > (uint32_t)LEVEL_CAP) rival.level = (uint32_t)LEVEL_CAP;
 						ZeroMemory(&rival.name[0], sizeof(rival.name));
 						memcpy(&rival.name[0], member["name"].get<std::string>().c_str(), min(16, member["name"].get<std::string>().length()));
 						rival.carID = member["carid"].get<uint32_t>();
@@ -1390,7 +1394,6 @@ void Server::LoadRivalFile()
 						{
 							rival.requirements.previousRivals[i] = member["requirements"]["previousrivals"][i].get<int16_t>();
 						}
-						rival.requirements.time = member["requirements"]["level"].get<int8_t>();
 						rival.requirements.driveTrain = member["requirements"]["drivetrain"].get<int8_t>();
 						rival.requirements.engineCylinders = member["requirements"]["enginecylinders"].get<int8_t>();
 						rival.requirements.aspiration = member["requirements"]["aspiration"].get<int8_t>();

@@ -94,6 +94,11 @@ public:
 		bool isNPC;
 		float KMs;
 		int32_t spCount;
+		// Rewards are rolled once when the battle is processed and then replayed into the
+		// result packet. Rolling them twice would show the player numbers that were never banked.
+		uint32_t rewardExp;
+		uint32_t rewardCP;
+		int16_t rewardItem;
 	} BATTLE;
 #pragma region Client Class Pointers
 	Logger* logger;
@@ -188,7 +193,7 @@ public:
 	bool equipPart(uint32_t bay, uint8_t itemCategory, uint8_t itemType, uint32_t itemID);
 	bool confirmClass(uint32_t bay, CARCLASS carClass);
 	uint8_t getCarClass(int32_t bay = -1);
-	void addItem(int16_t itemID);
+	bool addItem(int16_t itemID);
 	bool removeItem(uint16_t itemID);
 	bool hasItem(uint16_t itemID);
 	bool isValidItem(uint16_t itemID);
@@ -213,6 +218,7 @@ public:
 	void getRivals();
 	void clearRivals();
 	void setRivalStatus(uint32_t TeamID, uint8_t MemberID, uint8_t Status);
+	bool hasBeatenRival(Rival* rival);
 	int32_t getSign(uint16_t id);
 	void enableSign(uint16_t id);
 	void disableSign(uint16_t id);

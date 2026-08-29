@@ -30,6 +30,8 @@
 #define BATTLE_TIMEOUT			60
 #define INITIALBATTLE_SP		5000000
 #define Rival_AUTOPILOT_SPEED	12
+#define REWARD_VARIANCE			0.15f		// +/- 15% randomisation applied to battle CP/EXP rewards
+#define PARTTICKET_CHANCE		25.0f		// % chance of a part ticket when the car ticket roll fails
 #define POSITION_ACCURACY		10
 #define PACKETSEND_LIMIT		10
 
