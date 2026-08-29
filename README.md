@@ -14,10 +14,12 @@ Team Area/Center is half-baked in the vsproj, but setting teams up required doin
 - MPS-Blowfish:       This deciphers the MPS.
 - Offline.dll:        This file has to be deleted in order to play online. Has a lot of fixes (like only 2 cars to choose from when starting as a new player, survival arena as an endurance race etc.) 
 ---------------
-URGENT TO CHECK/FIX; 
+URGENT TO CHECK/FIX; - there's currently a bug where there's too much data being saved (?), and the player's CP count turns to -1 every time. Since the game can't read that number, it throws a balance of 999,999,999CP at each login. 
 ---------------
 OVERALL: CHECK // TODO [...] MARKS. ACT ACCORDINGLY
 ---------------
+KNOWN ISSUES:
+
 1) PVP/PVE Battles - randomize the rewards. CP/EXP are based on rival's level with a multiplier applied - but after beating 11 rivals the EXP rewards are identical. Since it's based on NPC level, check if there's a ladder for their levels or are they all the same? Random tickets (items) can drop, but so far they seem to be repetitive - anytime a player wins the reward is a car ticket for a Toyota Trueno.
 2) Teams creation and their functionality - This also needs a webpage for user registration and teams creation/management. So far it can be done by commands in cmd/powershell ("SBOL Battle Server.exe" /createaccount). Database is set on SQLite. When entering TEAM CENTER, there's a message "Agree to TA Terms to continue". Presumably, these were also available on genki's webpage but there's no traces of that. 
 3) Packets (some are unassigned)
