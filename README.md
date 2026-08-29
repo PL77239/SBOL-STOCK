@@ -16,16 +16,14 @@ Team Area/Center is half-baked in the vsproj, but setting teams up required doin
 ---------------
 URGENT TO CHECK/FIX; 
 
-1) PVP/PVE Battles  (working in Offline, issues in Online - check the note below)
-     - EXP rewards for defeating NPC's and other Players
-2) Teams creation and their functionality  
+1) PVP/PVE Battles - randomize the rewards. CP/EXP are based on rival's level with a multiplier applied. Random tickets (items) can drop, but so far they seem to be repetitive.
+2) Teams creation and their functionality - This also needs a webpage for user registration and teams creation/management. So far it can be done by commands in cmd/powershell ("SBOL Battle Server.exe" /createaccount). Database is set on SQLite.
 3) Packets (some are unassigned)
      - On the online version when you leave beginner it connects to the server again without a password so fails to authenticate. But if you close game and login again it'll enter the main course. There's 2 calls to the 0x100 packets one for initial connect and another for reconnect. So some reason it doesn't send the packet with the password the 2nd time
-4) Sound (BGM is too loud, and car sounds are inaudible regardless of ini settings)
+4) Sound (BGM is too loud, and car sounds are inaudible regardless of ini settings). Check for compatibility if imported from games like Tokyo Xtreme Racer 0.
 5) When in SAFEMODE, after switching tabs to other than the game it tends to still catch the keypresses causing the car to constantly hit/spin
 6) Create a short functionality documentation based on packets (what is responsible for what action)
-7) EXP Rewards for completing time attacks based (for times under 4:10min)
-8) After defeating a Player, an item reward should drop. It supposedly does, but doesn't appear when defeating a rival.
+7) EXP Rewards for completing time attacks based on times(for times under 4:10min)
 ---------------
 PvE/PvP (note from the private server creator):
 
@@ -37,7 +35,7 @@ The client has a send and receive buffer of 64k and it wraps. So you need to ens
 This is the same for sending and receiving
 It's common in games but I overlooked it and it causes a lot of issues
 So fairly easy to fix
-You need to leave from the last junction in the c1 to get out of the "Beginner" rank. Battles are disabled for beginners. 
+You need to leave from the last junction in the c1 to get out of the "Beginner" rank. Battles are disabled for beginners and admins.
 
 --------------
 
@@ -51,8 +49,8 @@ How are objects placed onto the maps (instances)?
 
 --------------
 
-The time attack routes A/B are similiar, but only one displays sections, time, start and finish. For time attack A it's safe to set the reward time at 4:10 for now, as it rewards the player with CP and EXP which are necessary. Check why B isn't loading.
+The time attack routes A/B are similiar, but only one displays sections, time, start and finish. For time attack A it's safe to set the reward time at 4:10 for now, as it rewards the player with CP and EXP which are necessary. Check why B isn't loading. For A - if user reaches time under 3:30, grant a random item. 
 
 --------------
 
-As of now, if I was to set a number of NPC Rivals it's an amount that spawns when the player enters the course. Could it be possible to make them spawn in randomly or actively in a X drawing distance of the player? 
+Check the actual game engine limit for NPCs on track. NPCs are user-based and invisible to others, vice-versa. 
