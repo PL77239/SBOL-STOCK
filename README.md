@@ -16,7 +16,7 @@ Team Area/Center is half-baked in the vsproj, but setting teams up required doin
 ---------------
 URGENT TO CHECK/FIX; 
 
-1) PVP/PVE Battles - randomize the rewards. CP/EXP are based on rival's level with a multiplier applied. Random tickets (items) can drop, but so far they seem to be repetitive.
+1) PVP/PVE Battles - randomize the rewards. CP/EXP are based on rival's level with a multiplier applied - but after beating 11 rivals the EXP rewards are identical. Since it's based on NPC level, check if there's a ladder for their levels or are they all the same? Random tickets (items) can drop, but so far they seem to be repetitive - anytime a player wins the reward is a car ticket for a Toyota Trueno.
 2) Teams creation and their functionality - This also needs a webpage for user registration and teams creation/management. So far it can be done by commands in cmd/powershell ("SBOL Battle Server.exe" /createaccount). Database is set on SQLite. When entering TEAM CENTER, there's a message "Agree to TA Terms to continue". Presumably, these were also available on genki's webpage but there's no traces of that. 
 3) Packets (some are unassigned)
      - On the online version when you leave beginner it connects to the server again without a password so fails to authenticate. But if you close game and login again it'll enter the main course. There's 2 calls to the 0x100 packets one for initial connect and another for reconnect. So some reason it doesn't send the packet with the password the 2nd time
@@ -24,6 +24,8 @@ URGENT TO CHECK/FIX;
 5) When in SAFEMODE, after switching tabs to other than the game it tends to still catch the keypresses causing the car to constantly hit/spin
 6) Create a short functionality documentation based on packets (what is responsible for what action)
 7) EXP Rewards for completing time attacks based on times(for times under 4:10min)
+8) Beaten rivals (NPC) should appear in different color on the map, iirc blue arrow - not yet beaten, green - battle won, yellow - battle lost.
+9) NPC AI - current NPC's are very weak when it comes to their driving - there's no difficulty at all. TXR games get their fame from being difficult in battles. This needs to be changed, either by rewriting their algorythm or by importing AI's from a game like TXR0
 ---------------
 PvE/PvP (note from the private server creator):
 
