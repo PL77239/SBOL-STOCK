@@ -15,17 +15,20 @@ Team Area/Center is half-baked in the vsproj, but setting teams up required doin
 - Offline.dll:        This file has to be deleted in order to play online. Has a lot of fixes (like only 2 cars to choose from when starting as a new player, survival arena as an endurance race etc.) 
 ---------------
 URGENT TO CHECK/FIX; 
-
-1) PVP/PVE Battles  (working in Offline, issues in Online - check the note below)
-     - EXP rewards for defeating NPC's and other Players
-2) Teams creation and their functionality  
+---------------
+OVERALL: CHECK // TODO [...] MARKS. ACT ACCORDINGLY
+---------------
+1) PVP/PVE Battles - randomize the rewards. CP/EXP are based on rival's level with a multiplier applied - but after beating 11 rivals the EXP rewards are identical. Since it's based on NPC level, check if there's a ladder for their levels or are they all the same? Random tickets (items) can drop, but so far they seem to be repetitive - anytime a player wins the reward is a car ticket for a Toyota Trueno.
+2) Teams creation and their functionality - This also needs a webpage for user registration and teams creation/management. So far it can be done by commands in cmd/powershell ("SBOL Battle Server.exe" /createaccount). Database is set on SQLite. When entering TEAM CENTER, there's a message "Agree to TA Terms to continue". Presumably, these were also available on genki's webpage but there's no traces of that. 
 3) Packets (some are unassigned)
-     - On the online version when you leave beginner it connects to the server again without a password so fails to authenticate. But if you close game and login again it'll enter the main course. There's 2 calls to the 0x100 packets one for initial connect and another for reconnect. So some reason it doesn't send the packet with the password the 2nd time
-4) Sound (BGM is too loud, and car sounds are inaudible regardless of ini settings)
+     - On the online version when you leave beginner it connects to the server again without a password so fails to authenticate. But if you close game and login again it'll enter the main course. There's 2 calls to the 0x100 packets one for initial connect and another for reconnect. So some reason it doesn't send the packet with the password the 2nd time. Single packet send has a max size of 64k. Sometimes the client crashes with a socket error 10054, potentially due to a oversize? When compiling, there are several errors for sizing, ex. "Invalid data read from careerdata.rivalStatus: the read size is 1200, but the number of bytes read is: TeamID.". This is caused by setting hard number limits - it was implemented for debugging, but all this needs to be adressed. 
+4) Sound (BGM is too loud, and car sounds are inaudible regardless of ini settings). Check for compatibility if imported from games like Tokyo Xtreme Racer 0.
 5) When in SAFEMODE, after switching tabs to other than the game it tends to still catch the keypresses causing the car to constantly hit/spin
 6) Create a short functionality documentation based on packets (what is responsible for what action)
-7) EXP Rewards for completing time attacks based (for times under 4:10min)
-8) After defeating a Player, an item reward should drop. It supposedly does, but doesn't appear when defeating a rival.
+7) EXP Rewards for completing time attacks based on times(for times under 4:10min)
+8) Beaten rivals (NPC) should appear in different color on the map, iirc blue arrow - not yet beaten, green - battle won, yellow - battle lost.
+9) NPC AI - current NPC's are very weak when it comes to their driving - there's no difficulty at all. TXR games get their fame from being difficult in battles. This needs to be changed, either by rewriting their algorythm or by importing AI's from a game like TXR0
+10) NPC ruleset/requirements/spawns: NPC's should spawn on routes according to the ones in gangs JSON file (battle server -> rivals). routeTable could be the course, like C1, and courseID could be inner/outer. NPCs have their requirements that the player has to meet in order to battle them; for gang leaders, it's (ex.) to beat all previous gang members. Wanderers (rare rivals) have their own rulesets, that should be set individually as per wanderer - ex. player has to be driving said car, or desired drivetrain, tires etc. The online version only has NPC's on C1, as their "line" was no yet recorded on other routes. They are recorded (with coordinates) in the offline.dll, which would have to be decompiled to take that data out; To create a route you need to log the junction, distance and marker values from the 0x700 packets.
 ---------------
 PvE/PvP (note from the private server creator):
 
@@ -37,7 +40,7 @@ The client has a send and receive buffer of 64k and it wraps. So you need to ens
 This is the same for sending and receiving
 It's common in games but I overlooked it and it causes a lot of issues
 So fairly easy to fix
-You need to leave from the last junction in the c1 to get out of the "Beginner" rank. Battles are disabled for beginners. 
+You need to leave from the last junction in the c1 to get out of the "Beginner" rank. Battles are disabled for beginners and admins.
 
 --------------
 
@@ -51,8 +54,8 @@ How are objects placed onto the maps (instances)?
 
 --------------
 
-The time attack routes A/B are similiar, but only one displays sections, time, start and finish. For time attack A it's safe to set the reward time at 4:10 for now, as it rewards the player with CP and EXP which are necessary. Check why B isn't loading.
+The time attack routes A/B are similiar, but only one displays sections, time, start and finish. For time attack A it's safe to set the reward time at 4:10 for now, as it rewards the player with CP and EXP which are necessary. Check why B isn't loading. For A - if user reaches time under 3:30, grant a random item. 
 
 --------------
 
-As of now, if I was to set a number of NPC Rivals it's an amount that spawns when the player enters the course. Could it be possible to make them spawn in randomly or actively in a X drawing distance of the player? 
+Check the actual game engine limit for NPCs on track. NPCs are user-based and invisible to others, vice-versa. 
