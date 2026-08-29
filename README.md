@@ -28,6 +28,7 @@ OVERALL: CHECK // TODO [...] MARKS. ACT ACCORDINGLY
 7) EXP Rewards for completing time attacks based on times(for times under 4:10min)
 8) Beaten rivals (NPC) should appear in different color on the map, iirc blue arrow - not yet beaten, green - battle won, yellow - battle lost.
 9) NPC AI - current NPC's are very weak when it comes to their driving - there's no difficulty at all. TXR games get their fame from being difficult in battles. This needs to be changed, either by rewriting their algorythm or by importing AI's from a game like TXR0
+10) NPC ruleset/requirements/spawns: NPC's should spawn on routes according to the ones in gangs JSON file (battle server -> rivals). routeTable could be the course, like C1, and courseID could be inner/outer. NPCs have their requirements that the player has to meet in order to battle them; for gang leaders, it's (ex.) to beat all previous gang members. Wanderers (rare rivals) have their own rulesets, that should be set individually as per wanderer - ex. player has to be driving said car, or desired drivetrain, tires etc.
 ---------------
 PvE/PvP (note from the private server creator):
 
