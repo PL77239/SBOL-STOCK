@@ -48,6 +48,7 @@ public:
 	TEAMDATA* GetTeamDataPtr() { return &settings.teamData; }
 	RIVALDIFFICULTY GetRivalDifficulty() { return settings.difficulty; }
 	RIVALDIFFICULTY* GetRivalDifficultyPtr() { return &settings.difficulty; }
+	RIVALDATA settings;
 	bool SetRivalID(int32_t RivalID);
 	int32_t GetRivalID() { return settings.rivalID; }
 	void SetRouteTable(int32_t RouteTable) { settings.routeTable = RouteTable; }
@@ -64,7 +65,6 @@ public:
 	
 private:
 	uint16_t id;
-	RIVALDATA settings;
 	bool ready;
 	POSITION position;
 	int32_t reward;

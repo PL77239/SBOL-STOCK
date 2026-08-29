@@ -24,8 +24,19 @@ Rival::~Rival()
 
 void Rival::Random(int32_t Difficulty)
 {
-	// TODO: Randomly generate a random rival based of difficulty
-	memcpy(&settings, &RandomRivals[0], sizeof(RIVALDATA));
+	// total rival count in RandomRivals table
+	int maxRandomRivals = sizeof(RandomRivals) / sizeof(RIVALDATA);
+
+	if (maxRandomRivals > 0)
+	{
+		// randomly select a rival from the RandomRivals table (0 to maxRandomRivals - 1)
+		int randomIndex = rand() % maxRandomRivals;
+
+		// TODO: optionally, filter by Difficulty level if needed
+
+		// copy the selected rival's data into this Rival instance
+		memcpy(&settings, &RandomRivals[randomIndex], sizeof(RIVALDATA));
+	}
 }
 
 void Rival::SetName(std::string& Name)
@@ -158,10 +169,16 @@ uint32_t Rival::LoseCP(float distance, bool firsttime, float boost)
 
 int16_t Rival::WinReward(float boost)
 {
-	// TODO: Get reward for win
-	int16_t Reward = 1;
-	float chance = 1.0f + boost;
-	return Reward;
+	int16_t ticket = CarTicket();
+
+	// if rivals car has a ticket that can be obtained, return it
+	if (ticket != -1)
+	{
+		return ticket;
+	}
+
+	// no reward available
+	return -1;
 }
 
 int16_t Rival::LoseReward(float boost)
@@ -195,17 +212,21 @@ int16_t Rival::CarTicket()
 
 uint32_t Rival::WinXP(float distance, uint32_t remainingSP)
 {
-	// base exp - 5 points per level . So beating a level 20 npc will grant 100 exp
-	uint32_t baseXP = settings.level * 5;
+	// 5 points per level
+	uint32_t baseXP = settings.level * 8;
+
+	// if leader, double the base XP
+	if (settings.leader)
+	{
+		baseXP *= 2;
+	}
 
 	uint32_t XP = baseXP;
 
-	// full sp bonus  
-	// when keeping full sp bar, the exp reward doubles
+	// bonus for remaining SP, scaled by base XP
 	XP += (uint32_t)(((float)baseXP / 100000.0f) * (float)remainingSP);
 
-	// 2 points per km 
-	// 10 points for 5km
+	// bonus for distance, 2 XP per km
 	XP += (uint32_t)(distance / 1000.0f) * 2;
 
 	return XP;

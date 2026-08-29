@@ -1110,31 +1110,66 @@ void Client::getRivals()
 	//return;
 	clearRivals();
 
-	// base number of NPC
-	const uint32_t TOTAL_RIVALS = 15;
+	// rivals db limit (how many rivals are in the database)
+	const uint32_t TOTAL_RIVALS_IN_DB = 400;
 
-	for (uint32_t i = 0; i < TOTAL_RIVALS; i++)
+	// physical npcs limit
+	const uint32_t MAX_SPAWNED_RIVALS = 40;
+
+	uint32_t spawnedCount = 0;
+
+	for (uint32_t i = 0; i < TOTAL_RIVALS_IN_DB; i++)
 	{
-		uint32_t currentID = i;
+		// Jeśli wygenerowaliśmy już dopuszczalny ruch, przerywamy skanowanie bazy
+		if (spawnedCount >= MAX_SPAWNED_RIVALS)
+			break;
 
-		// loads first NPC as ID 800, rest 1, 2, 3 ... 
-		if (i == 0)
-			currentID = 800;
+		uint32_t currentID = i;
 
 		Rival newRival(this, currentID);
 
-		// If npc of said ID doesn't exist, skip it and continue to next ID
+		// takes the rival ID and loads the settings from the rival/team json file
 		if (!newRival.SetRivalID(currentID))
 		{
 			continue;
 		}
 
-		newRival.SetID(i);
+		// json rival requirements 
 
-		// NPCs are spaced out evenly across the rivals list, so we can use the index to determine their "tick" for when they should appear in the game world
-		newRival.SpaceTick(i, TOTAL_RIVALS);
+		// 1. level
+		//if (careerdata.level < newRival.settings.requirements.level)
+		//	continue;
+
+		// 2. wins
+		//if ((careerdata.rivalWin + careerdata.playerWin) < newRival.settings.requirements.wins)
+		//	continue;
+
+		// 3. mileage
+		//if (garagedata.activeCar && garagedata.activeCar->KMs < newRival.settings.requirements.kms)
+		//	continue;
+
+		// 4. route filtering
+		// shouldnt spawn npcs that are not on the same route as the player
+		//if (newRival.settings.routeTable != this->courseID)
+		//	continue;
+
+		/*
+		   TODO dla tablicy Previous Rivals:
+
+		   możesz tu dodać pętlę sprawdzającą statusy odpowiednich bossów w careerdata.rivalStatus.
+		*/
+
+		// ---------------------------------
+
+		// assign ID to rival, which is used for battle and other things
+		newRival.SetID(spawnedCount);
+
+		// NPCs are spaced out evenly across the rivals list. 
+		// spawnedCount is used to determine the tick for each rival, so they don't all spawn at once.
+		newRival.SpaceTick(spawnedCount, MAX_SPAWNED_RIVALS);
 
 		rivals.push_back(newRival);
+		spawnedCount++;
 	}
 }
 void Client::clearRivals()
@@ -1670,6 +1705,7 @@ void Client::SendItems()
 	for (uint32_t i = 0; i < min(itembox.size(), ITEMBOX_LIMIT); i++) outbuf.append<int16_t>(itembox.at(i));
 	Send();
 }
+
 void Client::SendSigns()
 {
 	outbuf.clearBuffer();
