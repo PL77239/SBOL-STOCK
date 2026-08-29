@@ -159,7 +159,7 @@ uint32_t Rival::LoseCP(float distance, bool firsttime, float boost)
 int16_t Rival::WinReward(float boost)
 {
 	// TODO: Get reward for win
-	int16_t Reward = -1;
+	int16_t Reward = 1;
 	float chance = 1.0f + boost;
 	return Reward;
 }
@@ -191,4 +191,32 @@ int16_t Rival::CarTicket()
 
 	// No requirments met
 	return -1;
+}
+
+uint32_t Rival::WinXP(float distance, uint32_t remainingSP)
+{
+	// base exp - 5 points per level . So beating a level 20 npc will grant 100 exp
+	uint32_t baseXP = settings.level * 5;
+
+	uint32_t XP = baseXP;
+
+	// full sp bonus  
+	// when keeping full sp bar, the exp reward doubles
+	XP += (uint32_t)(((float)baseXP / 100000.0f) * (float)remainingSP);
+
+	// 2 points per km 
+	// 10 points for 5km
+	XP += (uint32_t)(distance / 1000.0f) * 2;
+
+	return XP;
+}
+
+uint32_t Rival::LoseXP(float distance)
+{
+	// lose exp values 
+	// npc level (ex. 20 EXP for 20lv npc) + 1 EXP per km
+	uint32_t XP = settings.level;
+	XP += (uint32_t)(distance / 1000.0f) * 1;
+
+	return XP;
 }

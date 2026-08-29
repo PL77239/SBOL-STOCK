@@ -949,7 +949,7 @@ void Client::processBattleWin()
 	{
 		if (currentRival)
 		{
-			addExp(currentRival->WinXP());
+			addExp(currentRival->WinXP(battle.KMs, battle.SP));
 			giveCP(currentRival->WinCP(battle.KMs));
 			addItem(currentRival->WinReward());
 			if (careerdata.rivalWin < 0xFFFF)
@@ -1110,22 +1110,30 @@ void Client::getRivals()
 	//return;
 	clearRivals();
 
-	// TODO: Do this properly
-	for (uint32_t i = 0; i < 3; i++)
+	// base number of NPC
+	const uint32_t TOTAL_RIVALS = 15;
+
+	for (uint32_t i = 0; i < TOTAL_RIVALS; i++)
 	{
 		uint32_t currentID = i;
+
+		// loads first NPC as ID 800, rest 1, 2, 3 ... 
 		if (i == 0)
 			currentID = 800;
-		//Rival* newRival = new Rival(this, currentID);
+
 		Rival newRival(this, currentID);
+
+		// If npc of said ID doesn't exist, skip it and continue to next ID
 		if (!newRival.SetRivalID(currentID))
 		{
-			//delete newRival;
 			continue;
 		}
+
 		newRival.SetID(i);
-		//newRival.Random();
-		newRival.SpaceTick(i, 12);
+
+		// NPCs are spaced out evenly across the rivals list, so we can use the index to determine their "tick" for when they should appear in the game world
+		newRival.SpaceTick(i, TOTAL_RIVALS);
+
 		rivals.push_back(newRival);
 	}
 }
@@ -2318,7 +2326,7 @@ void Client::SendBattleNPCFinish()
 	outbuf.setType(0x500);
 	outbuf.setSubType(0x586);
 	outbuf.append<uint8_t>(getLevel());// (battle.status == BATTLESTATUS::WON) ? 0 : 1);
-	outbuf.append<uint32_t>((battle.status == Client::BATTLESTATUS::BS_WON) ? currentRival->WinXP() : currentRival->LoseXP()); // XP Gained
+	outbuf.append<uint32_t>((battle.status == Client::BATTLESTATUS::BS_WON) ? currentRival->WinXP(battle.KMs, battle.SP) : currentRival->LoseXP(battle.KMs)); // XP Gained
 	outbuf.append<uint8_t>(careerdata.experiencePercent); // XP Percentage
 	outbuf.append<uint32_t>((battle.status == Client::BATTLESTATUS::BS_WON) ? currentRival->WinCP(battle.KMs) : currentRival->LoseCP(battle.KMs)); // CP
 	outbuf.append<uint32_t>(0); // ???

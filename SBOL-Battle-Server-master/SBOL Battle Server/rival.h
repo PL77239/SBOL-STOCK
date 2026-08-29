@@ -54,8 +54,8 @@ public:
 	int32_t GetRouteTable() { return settings.routeTable; }
 	uint32_t WinCP(float distance = 0.0f, bool firsttime = false, float boost = 0.0f);
 	uint32_t LoseCP(float distance = 0.0f, bool firsttime = false, float boost = 0.0f);
-	uint32_t WinXP() { return 0; }
-	uint32_t LoseXP() { return 0; }
+	uint32_t WinXP(float distance = 0.0f, uint32_t remainingSP = 0);
+	uint32_t LoseXP(float distance = 0.0f);
 	int16_t WinReward(float boost = 0.0f);
 	int16_t LoseReward(float boost = 0.0f);
 	

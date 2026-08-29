@@ -1,0 +1,24 @@
+
+
+Launcher wrzucić do nowo utworzonego foldeur. Po otwarciu Launchera wystarczy kliknąć update; pobierze potrzebne dane. 1) Plik 'SERVER.ini' należy podmienić na ten z dysku;
+2) Dzięki współpracy z pierwotnym twórcą znajdziesz również plik 'offline.dll'. Zawiera mnóstwo patchy, które najłatwiej było implementować/testować na lokalnym hoście. Aby grać online, wystarczy zmienić nazwę, np. na 'offline.dll.bat'. Jeśli ten plik zostanie bez zmian, klient (SBClient) automatycznie załaduje tryb offline. Nie wymaga tworzenia kont. 
+
+Po załadowaniu do gry dostaniecie spawna w trasie 'Beginner'. Aby z niego wyjechać, szukajcie wyjazdu oznakowanego jako "MAIN COURSE". Służy jako bufor dla nowych graczy i jest to nowa instancja - pracuję nad tym, ale obecnie po wyjechaniu na main course serwer was wyrzuci, wystarczy zamknąć i zalogować się ponownie - przejdziecie już do głównej trasy i tego błędu więcej nie napotkacie. Wynika to z faktu, że klient gry po przejściu na ten kurs jako nowy gracz, próbuje weryfikować konto, ale nie wysyła ponownie pakietu z hasłem - ot MMO z 2002. 
+
+Z - gaz
+X - hamulec
+A - wsteczny
+C - światła długie / wyzwanie na pojedynek
+V - zmiana kamery
+B - zoom mapy
+CTR+A - toggle safemode
+CTR+S - toggle chat
+CTR+(1-9) - emotki, widoczne obok nicka graczy
+
+Aby kupić nowe auto bądź części, należy wyjechać (course) na odpowiednio - CAR STORE COURSE, CAR PARTS STORE
+To samo tyczy się bycia już na tych trasach - po drodze będziecie napotykać sklepy z różnych kategorii / marek. 
+
+Wyjazdy na TIME ATTACK również działają, pracujemy nad leaderboardem oraz lepszymi segmentami czasowymi. Realnie cały ten projekt to WIP - cały serwer był pisany od absolutnego 0 dzięki dekompilacji klienta gry. 
+
+W razie wszelkich pytań uderzajcie do mnie na DM. 
+Ciężko mi stworzyć praktyczną dokumentację, bo takowej nie da się znaleźć. 
