@@ -1,0 +1,9 @@
+# Local operator configuration, contains secret_key
+config.json
+# Runtime logs
+log/
+# Local test databases
+*.db
+*.db-wal
+*.db-shm
+__pycache__/

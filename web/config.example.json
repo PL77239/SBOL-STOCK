@@ -1,0 +1,15 @@
+{
+    "database": "../sbol.db",
+    "host": "127.0.0.1",
+    "port": 8080,
+    "wal": true,
+    "busy_timeout_ms": 5000,
+    "trusted_proxy": false,
+    "registrations_per_hour": 5,
+    "lookups_per_minute": 30,
+    "global_registrations_per_hour": 200,
+    "min_form_seconds": 2,
+    "max_form_seconds": 3600,
+    "secret_key": "CHANGE-ME-run: python -c \"import secrets;print(secrets.token_hex(32))\"",
+    "log_path": "./log"
+}
