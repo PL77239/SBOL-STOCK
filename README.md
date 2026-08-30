@@ -14,7 +14,7 @@ Team Area/Center is half-baked in the vsproj, but setting teams up required doin
 - MPS-Blowfish:       This deciphers the MPS.
 - Offline.dll:        This file has to be deleted in order to play online. Has a lot of fixes (like only 2 cars to choose from when starting as a new player, survival arena as an endurance race etc.) 
 ---------------
-URGENT TO CHECK/FIX; - there's currently a bug where there's too much data being saved (?), and the player's CP count turns to -1 every time. Since the game can't read that number, it throws a balance of 999,999,999CP at each login. 
+URGENT TO CHECK/FIX; - there's currently a bug where there's too much data being saved (?), and the player's CP count turns to -1 every time. Since the game can't read that number, it throws a balance of 999,999,999CP at each login. After winning one battle, the CP count drops to -1 (win: 35CP, total:34CP), after one more win ot rises, but whenever player goes back to the garage or enters a new course, the balance jumps to 999,999,999 again since it can't read negative values (which is -1). Additionally, the first team (ROLLING GUY) appears as defeated, and their arrows on the map are green (rivals defeated). Other rivals that were unchallenged have a blue arrowd. As of now, when defeating a new rival, from a new team, the win doesn't register in the RIVAL LIST, and when the player ends the battle, the arrow still appears blue on the map. 
 ---------------
 OVERALL: CHECK // TODO [...] MARKS. ACT ACCORDINGLY
 ---------------
