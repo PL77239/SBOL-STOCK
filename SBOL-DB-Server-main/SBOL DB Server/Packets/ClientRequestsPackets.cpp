@@ -30,7 +30,10 @@ void ClientRequests(CLIENT* client)
 		RIVAL_STATUS rivalStatus[100];
 		uint32_t license = client->inbuf.get<uint32_t>();
 		std::string handle = client->inbuf.getStringA(0x10);
-		uint64_t CP = client->inbuf.get<int64_t>();
+		// Signed, not uint64_t: a negative balance was being written out as a ~1.8e19 literal that
+		// neither SQLite nor MySQL can store in a signed 64 bit column.
+		int64_t CP = client->inbuf.get<int64_t>();
+		if (CP < 0) CP = 0;
 		uint32_t level = static_cast<uint32_t>(client->inbuf.get<uint8_t>());
 		uint32_t points = client->inbuf.get<uint32_t>();
 		uint32_t playerWin = client->inbuf.get<uint32_t>();

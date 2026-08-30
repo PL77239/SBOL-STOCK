@@ -186,6 +186,7 @@ public:
 	bool enoughCP(int64_t price);
 	void takeCP(int64_t price);
 	void giveCP(int64_t cp);
+	void setCP(int64_t cp);
 	uint32_t calculateOverhaul(uint32_t bay);
 	uint16_t getShopPartPrice(uint32_t bay, uint8_t itemCategory, uint8_t itemType, uint32_t itemID);
 	uint16_t getShopPartPriceFromID(uint32_t carID, uint8_t itemCategory, uint8_t itemType, uint32_t itemID);
@@ -218,6 +219,8 @@ public:
 	void getRivals();
 	void clearRivals();
 	void setRivalStatus(uint32_t TeamID, uint8_t MemberID, uint8_t Status);
+	uint8_t getRivalStatus(Rival* rival);
+	uint8_t getRivalArrowFlags(Rival* rival);
 	bool hasBeatenRival(Rival* rival);
 	int32_t getSign(uint16_t id);
 	void enableSign(uint16_t id);
@@ -243,6 +246,8 @@ public:
 	void SendCourseJoin(uint8_t notify = 1);
 	void SendRivalRecords();
 	void SendRivalJoin();
+	void SendRivalJoin(Rival& rival);
+	void SendRivalRefresh(Rival* rival);
 	void SendRivalPosition();
 	void SendRemoveRivals();
 	void SendPositionBrief();

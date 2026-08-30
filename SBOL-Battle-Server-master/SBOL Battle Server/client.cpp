@@ -316,18 +316,33 @@ int32_t Client::setUsername(std::string& in)
 }
 bool Client::enoughCP(int64_t price)
 {
-	if (careerdata.CP - price < 0) return false;
-	else return true;
+	if (price < 0) return false;
+	return careerdata.CP >= price;
 }
 void Client::takeCP(int64_t price)
 {
-	if (careerdata.CP - price >= 0) careerdata.CP -= price;
+	if (price <= 0) return;
+	if (careerdata.CP >= price) careerdata.CP -= price;
 	else careerdata.CP = 0;
 }
 void Client::giveCP(int64_t cp)
 {
-	if((careerdata.CP + cp) > careerdata.CP) careerdata.CP += cp;
-	else careerdata.CP = _I64_MAX;
+	// A reward of 0 used to fail the old "(CP + cp) > CP" test and drop into the overflow branch,
+	// which set the balance to _I64_MAX. The client renders anything at or above 1,000,000,000 as
+	// the 999,999,999 cap, and _I64_MAX + any later reward overflows straight back to _I64_MAX, so
+	// the balance was stuck there for good. Rival::LoseCP returns 0 for any battle shorter than a
+	// kilometre, so one short loss was enough to break the account permanently.
+	if (cp <= 0) return;
+	if (cp >= CP_LIMIT || careerdata.CP > CP_LIMIT - cp) careerdata.CP = CP_LIMIT;
+	else careerdata.CP += cp;
+}
+void Client::setCP(int64_t cp)
+{
+	// Single place that decides what a valid balance is. Also used when loading an account so a
+	// value already corrupted in the database is brought back into a range the client can display.
+	if (cp < 0) careerdata.CP = 0;
+	else if (cp > CP_LIMIT) careerdata.CP = CP_LIMIT;
+	else careerdata.CP = cp;
 }
 uint32_t Client::calculateOverhaul(uint32_t bay)
 {
@@ -1237,18 +1252,37 @@ void Client::setRivalStatus(uint32_t TeamID, uint8_t MemberID, uint8_t Status)
 		(careerdata.rivalStatus[TeamID].rivalMember[MemberID] == Rival::RIVALSTATUS::RS_HIDDEN && Status == Rival::RIVALSTATUS::RS_SHOW))
 		careerdata.rivalStatus[TeamID].rivalMember[MemberID] = Status;
 }
-bool Client::hasBeatenRival(Rival* rival)
+uint8_t Client::getRivalStatus(Rival* rival)
 {
 	if (rival == nullptr || rival->GetCustom())
-		return false;
+		return Rival::RIVALSTATUS::RS_HIDDEN;
 
 	uint32_t teamID = rival->GetTeamData().teamID;
 	uint8_t memberID = (uint8_t)(rival->GetTeamData().memberID % 8);
 
 	if (teamID >= (sizeof(careerdata.rivalStatus) / sizeof(RIVAL_STATUS)))
-		return false;
+		return Rival::RIVALSTATUS::RS_HIDDEN;
 
-	return careerdata.rivalStatus[teamID].rivalMember[memberID] == Rival::RIVALSTATUS::RS_WON;
+	return careerdata.rivalStatus[teamID].rivalMember[memberID];
+}
+uint8_t Client::getRivalArrowFlags(Rival* rival)
+{
+	// Flags byte of the 0x480 join packet: bit 6 turns the map arrow green, bit 7 turns it red.
+	// Without this every rival joined with 0 and stayed on the default blue arrow no matter how
+	// many times the player had already raced them.
+	switch (getRivalStatus(rival))
+	{
+	case Rival::RIVALSTATUS::RS_WON:
+		return 0x40;
+	case Rival::RIVALSTATUS::RS_LOST:
+		return 0x80;
+	default:
+		return 0x00;
+	}
+}
+bool Client::hasBeatenRival(Rival* rival)
+{
+	return getRivalStatus(rival) == Rival::RIVALSTATUS::RS_WON;
 }
 int32_t Client::getSign(uint16_t id)
 {
@@ -1487,7 +1521,11 @@ void Client::SendRivalRecords()
 	outbuf.append<uint8_t>(count); // Rival count should be 0x64 as even removed rival ID's are processed
 
 	uint8_t status_remaps[] = { 3, 0, 1, 2 };
-	inbuf.addOffset(0x05);
+	// addOffset advanced whatever pOffset the previous packet happened to leave behind - inbound
+	// packets are placed with setArray, which never resets it - so the team IDs below were read
+	// from an arbitrary point in the buffer. Every other client packet handler sets the offset
+	// outright, and the team ID list starts at 0x05 (0x04 holds the count).
+	inbuf.setOffset(0x05);
 	for (int32_t i = 0; i < count; i++)
 	{
 		uint32_t currentID = inbuf.get<uint32_t>();
@@ -1531,39 +1569,56 @@ void Client::SendRivalJoin()
 	//return;
 	if (rivals.size() == 0) return;
 
-	for (auto& rival : rivals)
-	{
-		outbuf.clearBuffer();
-		outbuf.setSize(0x06);
-		outbuf.setOffset(0x06);
-		outbuf.setType(0x400);
-		outbuf.setSubType(0x480);
-		outbuf.append<uint16_t>(rival.GetID()); //ID
-		outbuf.appendString(std::string(rival.GetName()), 0x10); // Rival Name
-		outbuf.append<uint32_t>(timeGetTime()); // Time maybe ????
-		outbuf.append<uint8_t>(rival.GetLevel()); // Level
-		outbuf.append<uint32_t>(0, false); // ????
-		outbuf.append<int32_t>(rival.GetCar(), false); // Car ID
-		outbuf.appendArray((uint8_t*)rival.GetCarModsPtr(), sizeof(CARMODS) - sizeof(CARMODS::tuner)); // Rivals don't have tuner names
-		outbuf.appendArray((uint8_t*)rival.GetCarSettingsPtr(), sizeof(CARSETTINGS)); // Car Settings
-		outbuf.append<uint16_t>(0); // ???
-		outbuf.append<uint16_t>(rival.GetPosition().location1, false); // Junction
-		outbuf.append<uint16_t>(rival.GetPosition().location2, false); // Distance
-		outbuf.append<uint16_t>(rival.GetPosition().location3, false); // ???
-		outbuf.append<uint16_t>(0xFFFF, false); // Set 0xFFFF to auto place in area
-		outbuf.append<uint8_t>(2); // npc stuff must be below 0x20. 0x00 = Self, 0x01 = Player, 0x02 = NPC
-		// TODO: Has rival been beaten or lost to?
-		outbuf.append<uint8_t>(0); // 1st bit arrow is flashin (if player), 7th bit arrow is green, 8th bit arrow is red
-		outbuf.append<uint16_t>(0, false); // 1st bit car is in safe mode, When 3rd bit set car is transparent
-		outbuf.append<uint8_t>(0); // ???? 
-		outbuf.append<uint8_t>(0); // ????
-		// 0x6C byte array - Team Data
-		outbuf.appendArray((uint8_t*)rival.GetTeamDataPtr(), sizeof(TEAMDATA));
-		outbuf.append<uint8_t>(0); // If set with player notification of player entering is displayed.
-		outbuf.append<uint16_t>(0); // Count for something requires the shorts as many as these
-		outbuf.append<uint32_t>(0); // Icon next to name. if player.
-		Send();
-	}
+	for (auto& rival : rivals) SendRivalJoin(rival);
+}
+void Client::SendRivalJoin(Rival& rival)
+{
+	outbuf.clearBuffer();
+	outbuf.setSize(0x06);
+	outbuf.setOffset(0x06);
+	outbuf.setType(0x400);
+	outbuf.setSubType(0x480);
+	outbuf.append<uint16_t>(rival.GetID()); //ID
+	outbuf.appendString(std::string(rival.GetName()), 0x10); // Rival Name
+	outbuf.append<uint32_t>(timeGetTime()); // Time maybe ????
+	outbuf.append<uint8_t>(rival.GetLevel()); // Level
+	outbuf.append<uint32_t>(0, false); // ????
+	outbuf.append<int32_t>(rival.GetCar(), false); // Car ID
+	outbuf.appendArray((uint8_t*)rival.GetCarModsPtr(), sizeof(CARMODS) - sizeof(CARMODS::tuner)); // Rivals don't have tuner names
+	outbuf.appendArray((uint8_t*)rival.GetCarSettingsPtr(), sizeof(CARSETTINGS)); // Car Settings
+	outbuf.append<uint16_t>(0); // ???
+	outbuf.append<uint16_t>(rival.GetPosition().location1, false); // Junction
+	outbuf.append<uint16_t>(rival.GetPosition().location2, false); // Distance
+	outbuf.append<uint16_t>(rival.GetPosition().location3, false); // ???
+	outbuf.append<uint16_t>(0xFFFF, false); // Set 0xFFFF to auto place in area
+	outbuf.append<uint8_t>(2); // npc stuff must be below 0x20. 0x00 = Self, 0x01 = Player, 0x02 = NPC
+	outbuf.append<uint8_t>(getRivalArrowFlags(&rival)); // 1st bit arrow is flashin (if player), 7th bit arrow is green, 8th bit arrow is red
+	outbuf.append<uint16_t>(0, false); // 1st bit car is in safe mode, When 3rd bit set car is transparent
+	outbuf.append<uint8_t>(0); // ???? 
+	outbuf.append<uint8_t>(0); // ????
+	// 0x6C byte array - Team Data
+	outbuf.appendArray((uint8_t*)rival.GetTeamDataPtr(), sizeof(TEAMDATA));
+	outbuf.append<uint8_t>(0); // If set with player notification of player entering is displayed.
+	outbuf.append<uint16_t>(0); // Count for something requires the shorts as many as these
+	outbuf.append<uint32_t>(0); // Icon next to name. if player.
+	Send();
+}
+void Client::SendRivalRefresh(Rival* rival)
+{
+	// The map arrow colour is baked into the 0x480 join packet, so a rival that changed status
+	// mid-course keeps the colour it joined with. Drop the entry and re-add it under the same ID
+	// to make the client pick up the new one.
+	if (rival == nullptr || currentCourse != COURSE_MAIN) return;
+
+	outbuf.clearBuffer();
+	outbuf.setSize(0x06);
+	outbuf.setOffset(0x06);
+	outbuf.setType(0x400);
+	outbuf.setSubType(0x481);
+	outbuf.append<uint16_t>(rival->GetID()); // ID to remove
+	Send();
+
+	SendRivalJoin(*rival);
 }
 void Client::SendPositionBrief()
 {
@@ -2432,6 +2487,9 @@ void Client::SendBattleNPCFinish()
 	outbuf.append<int16_t>(battle.rewardItem); // Item
 	outbuf.append<uint8_t>(0); // For Survival?
 	Send();
+	// processBattleWin / processBattleLose above have just recorded the result, so re-issue the
+	// rival with its new arrow colour before clearBattle() drops the pointer.
+	SendRivalRefresh(currentRival);
 	clearBattle();
 }
 void Client::SendBattleDamage(uint32_t bay, uint32_t damage1, uint32_t damage2, uint32_t damage3, uint32_t damage4)

@@ -37,6 +37,7 @@
 
 // Limits
 #define LEVEL_CAP				50
+#define CP_LIMIT				999999999LL	// Highest balance the client can render. Above this it prints the 999,999,999 cap.
 #define SERVER_LIMIT			100
 #define COURSE_COUNT			9
 #define COURSE_PLAYER_LIMIT		200
