@@ -57,10 +57,11 @@ shop entry. Its handler now reads a target game mode out of the high 16 bits of 
 field, so the same packet can reach either the shops (0x1A, the old behaviour when those
 bits are zero) or a PA (0x1B). Rebuild both the battle server and SBOL_Dll.
 
-NOT DONE: the 7-icon hub screen itself, which needs a new SWF6 movie appended to KFD.SSS,
-and other players' cars rendered in the room. The PA scene object is 0xdf0 bytes with no
-per-player array - the original never drew other people's cars either, the social side was
-the chat window and the ranking board.
+NOT DONE, in full, with the addresses and the experiments worth running first:
+docs/PARKING-AREAS.md. The short version is that warping to 0x1B rather than 0x1F means the
+12 backdrops are never drawn - you get the room and the chat, over the ordinary main menu
+background - and that fixing it needs the hub movie rebuilt as a SWF6 and appended to
+KFD.SSS. Other players' cars are not drawn either; the original did not draw them.
 
 ---------------
 KNOWN ISSUES:
