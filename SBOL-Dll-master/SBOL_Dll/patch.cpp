@@ -1637,11 +1637,21 @@ void __fastcall Packet0482(void* _this, void* edx, void* mps)
 	*(uint8_t*)(0x006F4F38 + 0x1288) = 0;
 	*(uint8_t*)(0x006F4F38 + 0x1290) = 0;
 
-	*(uint32_t*)0x006F64C0 = shopType;
+	// The low 16 bits are the place id the client writes to its place global. The high 16
+	// bits, when set, name the game mode to warp into; the battle server uses that to send
+	// players to MAINMENU_PA (0x1B) for Parking Areas. A zero high half is the original
+	// shop warp and keeps working exactly as before.
+	int gameMode = (shopType >> 16) & 0xFFFF;
+	if (gameMode == 0) gameMode = 0x1A;		// MAINMENU
+	shopType &= 0xFFFF;
+
+	// 0xFFFF means "not at a place". The client's own junction handler at 0x00444a1a
+	// writes 0xFFFFFFFF for that, so match it rather than leaving a valid place id behind.
+	*(uint32_t*)0x006F64C0 = (shopType == 0xFFFF) ? 0xFFFFFFFF : (uint32_t)shopType;
 
 	using WarpToScreenFunc = void* (__fastcall*)(void*, void*, int, int);
 	WarpToScreenFunc WarpToScreen = (WarpToScreenFunc)0x004272F0;
-	WarpToScreen(*(void**)0x006EBDD0, edx, 0x14, 0x1A);
+	WarpToScreen(*(void**)0x006EBDD0, edx, 0x14, gameMode);
 }
 
 void __fastcall packetHandle04001400(void* _this, void* edx, void* mps)

@@ -119,6 +119,7 @@
     <ClCompile Include="Management Packets\ManagementPacketClientRequests.cpp" />
     <ClCompile Include="ManagementServer.cpp" />
     <ClCompile Include="packet.cpp" />
+    <ClCompile Include="parkingarea.cpp" />
     <ClCompile Include="rival.cpp" />
     <ClCompile Include="Server Packets\ClientAuthPackets.cpp" />
     <ClCompile Include="Server Packets\ClientOperationsPackets.cpp" />
@@ -139,6 +140,7 @@
     <ClInclude Include="ManagementServer.h" />
     <ClInclude Include="packet.h" />
     <ClInclude Include="packets.h" />
+    <ClInclude Include="parkingarea.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="rival.h" />
     <ClInclude Include="RivalTables.h" />

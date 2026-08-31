@@ -45,6 +45,16 @@
 #define COURSE_DIMENSIONS		10
 #define GARAGE_LIMIT			12
 #define ITEMBOX_LIMIT			10
+// Parking Areas. 11 is not arbitrary: the client ships exactly 11 place thumbnails
+// (pa_wmp01..pa_wmp11 in data/TEX/pa_new.MIA) and the junction table at 0x00444a1a
+// assigns exactly 11 consecutive place ids, 0x09..0x13, to them.
+#define PARKINGAREA_COUNT		11
+#define PARKINGAREA_PLAYER_LIMIT	50
+#define PARKINGAREA_FIRST_PLACE	0x09
+#define PARKINGAREA_NO_PLACE	0xFFFF	// "not at a place"; the DLL turns this into 0xFFFFFFFF
+// Client game modes, from the mode-name switch at 0x00427090.
+#define GAMEMODE_MAINMENU		0x1A
+#define GAMEMODE_MAINMENU_PA	0x1B
 
 // Costs
 #define PAINT_BASE_COST			500

@@ -1,4 +1,5 @@
 #include <Windows.h>
+#include <sstream>
 #include "..\server.h"
 
 void ClientPacketChat(Client* client)
@@ -384,6 +385,88 @@ void ClientPacketChat(Client* client)
 				else
 				{
 					client->SendAnnounceMessage(std::string("Syntax error. Example: !unlock all"), RGB(50, 100, 250), client->driverslicense);
+				}
+				return;
+			}
+			else if (command[0].compare("pa") == 0)
+			{
+				// Parking Areas. Static social rooms, not driveable courses: entering one
+				// takes the player out of whatever course they were on and scopes their
+				// chat to the room. See parkingarea.h for how the client gets there.
+				if (command.size() < 2 || command[1].compare("list") == 0)
+				{
+					client->SendAnnounceMessage(std::string("Parking areas:"), RGB(50, 100, 250), client->driverslicense);
+					for (uint32_t i = 0; i < server->parkingAreas.size(); i++)
+					{
+						ParkingArea* area = server->parkingAreas[i];
+						if (area == nullptr) continue;
+						std::stringstream ss;
+						ss << (i + 1) << ". " << area->getName() << " (" << area->getClientCount() << "/" << PARKINGAREA_PLAYER_LIMIT << ")";
+						client->SendAnnounceMessage(ss.str(), RGB(50, 100, 250), client->driverslicense);
+					}
+					client->SendAnnounceMessage(std::string("Use !pa <number or name> to travel, !pa leave to go back."), RGB(50, 100, 250), client->driverslicense);
+					return;
+				}
+				if (command[1].compare("leave") == 0)
+				{
+					if (client->inParkingArea() == false)
+					{
+						client->SendAnnounceMessage(std::string("You are not in a parking area."), RGB(50, 100, 250), client->driverslicense);
+						return;
+					}
+					client->LeaveParkingArea();
+					return;
+				}
+				if (command[1].compare("who") == 0)
+				{
+					if (client->inParkingArea() == false)
+					{
+						client->SendAnnounceMessage(std::string("You are not in a parking area."), RGB(50, 100, 250), client->driverslicense);
+						return;
+					}
+					std::vector<std::string> handles;
+					client->parkingArea->getMemberHandles(handles);
+					std::stringstream ss;
+					ss << client->parkingArea->getName() << " (" << handles.size() << "):";
+					client->SendAnnounceMessage(ss.str(), RGB(50, 100, 250), client->driverslicense);
+					std::string line = "";
+					for (const auto& handle : handles)
+					{
+						// The announce field is 0x4E bytes, so flush before overrunning it.
+						if (line.length() + handle.length() + 2 > 0x4C)
+						{
+							client->SendAnnounceMessage(line, RGB(50, 100, 250), client->driverslicense);
+							line = "";
+						}
+						if (line.length()) line += ", ";
+						line += handle;
+					}
+					if (line.length()) client->SendAnnounceMessage(line, RGB(50, 100, 250), client->driverslicense);
+					return;
+				}
+				// Anything else is a destination. Rejoin the words so names with spaces work.
+				std::string destination = command[1];
+				for (uint32_t i = 2; i < command.size(); i++) destination += " " + command[i];
+
+				int32_t index = server->findParkingArea(destination);
+				if (index == -1)
+				{
+					client->SendAnnounceMessage(std::string("No such parking area. Try !pa list."), RGB(250, 100, 50), client->driverslicense);
+					return;
+				}
+				if (client->battle.status != Client::BATTLESTATUS::BS_NOT_IN_BATTLE)
+				{
+					client->SendAnnounceMessage(std::string("You cannot travel during a battle."), RGB(250, 100, 50), client->driverslicense);
+					return;
+				}
+				if (server->parkingAreas[index]->getClientCount() >= PARKINGAREA_PLAYER_LIMIT)
+				{
+					client->SendAnnounceMessage(std::string("That parking area is full."), RGB(250, 100, 50), client->driverslicense);
+					return;
+				}
+				if (client->EnterParkingArea(index) == false)
+				{
+					client->SendAnnounceMessage(std::string("Could not enter that parking area."), RGB(250, 100, 50), client->driverslicense);
 				}
 				return;
 			}

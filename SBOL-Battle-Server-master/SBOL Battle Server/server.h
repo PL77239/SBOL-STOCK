@@ -9,6 +9,7 @@
 #include "Logger.h"
 #include "client.h"
 #include "course.h"
+#include "parkingarea.h"
 #include "managementserver.h"
 #include <BlowfishSBOL\BlowFishSBOL.h>
 
@@ -142,6 +143,7 @@ public:
 	};
 	std::vector<Client*> connections;
 	std::vector<Course*> courses[COURSE_DIMENSIONS];
+	std::vector<ParkingArea*> parkingAreas;
 	std::vector<uint32_t> expToLevel;
 	std::vector<RIVALDATA> rivalData;
 	P_DAT pDAT;
@@ -189,6 +191,9 @@ public:
 	uint32_t playerCount();
 	SERVERSTATUS getStatus() { return status; };
 	void LoadRivalFile();
+	void LoadParkingAreaFile();
+	ParkingArea* getParkingArea(int32_t index);
+	int32_t findParkingArea(std::string& name);
 	RIVALDATA* GetRivalData(int32_t RivalID, Client* client = nullptr);
 	void setStatus(SERVERSTATUS _status) { status = _status; };
 	void SendChatMessage(CHATTYPE type, std::string& handle, std::string& message);
@@ -240,5 +245,6 @@ private:
 	int32_t loadPartShopData();
 	int32_t loadItemData();
 	std::vector<std::string> GetRivalFiles(std::string& path = std::string(".\\data\\rivals"));
+	const wchar_t* PARKINGAREA_FILENAME = L".\\data\\parkingareas.json";
 };
 

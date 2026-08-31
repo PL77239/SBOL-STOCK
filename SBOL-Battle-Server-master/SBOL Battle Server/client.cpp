@@ -5,6 +5,7 @@
 #include "globals.h"
 #include "Logger.h"
 #include "course.h"
+#include "parkingarea.h"
 #include "client.h"
 #include "packet.h"
 #include "serverpacket.h"
@@ -17,6 +18,9 @@ Client::Client()
 }
 Client::~Client()
 {
+	// Belt and braces: the disconnect path already calls LeaveParkingArea, but a Client
+	// destroyed by any other route must not leave a dangling pointer in the area.
+	if (parkingArea != nullptr) parkingArea->removeClient(this);
 	clearRivals();
 }
 void Client::initialize()
@@ -51,6 +55,7 @@ void Client::initialize()
 	sendWelcome = 0;
 	currentCourse = 0;
 	course = nullptr;
+	parkingArea = nullptr;
 	ZeroMemory((uint8_t*)&battle, sizeof(BATTLE));
 	courseID = 0;
 	ping = 0;
@@ -100,6 +105,9 @@ void Client::initializeTeam()
 }
 int32_t Client::joinCourse()
 {
+	// A driveable course and a Parking Area are mutually exclusive: chat, presence and the
+	// 0x400 broadcasts all key off one or the other. Driving out of a PA drops you from it.
+	if (inParkingArea()) LeaveParkingArea(false);
 	if (course != nullptr) course->removeClient(this);
 	if (notBeginner == false) currentCourse = 8;
 	int32_t courseNumber = currentCourse;
@@ -118,6 +126,64 @@ int32_t Client::joinCourse()
 		return 0;
 	}
 	return 1;
+}
+bool Client::EnterParkingArea(int32_t index)
+{
+	if (server == nullptr) return false;
+	ParkingArea* area = server->getParkingArea(index);
+	if (area == nullptr) return false;
+	if (area == parkingArea) return true;
+	if (battle.status != BATTLESTATUS::BS_NOT_IN_BATTLE) return false;
+	// Checked before anything is torn down. Leaving the course first and only then
+	// discovering the area is full would strand the client in neither room.
+	if (area->getFree() == -1) return false;
+
+	// Drop out of whatever room we were in first. removeClient also broadcasts the 0x481
+	// so the drivers still on the course stop rendering this car.
+	LeaveParkingArea(false);
+	if (course != nullptr) course->removeClient(this);
+	inCourse = false;
+	hasPlayers = false;
+
+	if (area->addClient(this) == -1) return false;
+
+	SendParkingAreaWarp(area->getPlaceID(), GAMEMODE_MAINMENU_PA);
+
+	std::stringstream self;
+	self << "Welcome to " << area->getName() << ". (" << area->getClientCount() << "/" << PARKINGAREA_PLAYER_LIMIT << ")";
+	SendAnnounceMessage(self.str(), RGB(50, 100, 250), driverslicense);
+
+	std::stringstream room;
+	room << handle << " has arrived.";
+	SendAnnounceToArea(area, room.str(), RGB(50, 100, 250), driverslicense);
+
+	logger->Log(Logger::LOGTYPE_CLIENT, L"Client %s (%u) entered parking area %d (%s, place 0x%02X).",
+		logger->toWide(handle).c_str(),
+		driverslicense,
+		index,
+		logger->toWide(area->getName()).c_str(),
+		area->getPlaceID());
+	return true;
+}
+void Client::LeaveParkingArea(bool warpOut)
+{
+	if (parkingArea == nullptr) return;
+	ParkingArea* area = parkingArea;
+	area->removeClient(this);	// clears this->parkingArea
+
+	std::stringstream room;
+	room << handle << " has left.";
+	SendAnnounceToArea(area, room.str(), RGB(50, 100, 250), driverslicense);
+
+	// warpOut is false when the client is already going somewhere else under its own steam
+	// (joining a course, or disconnecting), where a second scene change would fight it.
+	if (warpOut)
+	{
+		SendParkingAreaWarp(PARKINGAREA_NO_PLACE, GAMEMODE_MAINMENU);
+		std::stringstream self;
+		self << "You have left " << area->getName() << ".";
+		SendAnnounceMessage(self.str(), RGB(50, 100, 250), driverslicense);
+	}
 }
 int8_t Client::getCarCount()
 {
@@ -1499,6 +1565,23 @@ void Client::SendCourseJoin(uint8_t notify)
 		SendRivalJoin();
 	}
 }
+void Client::SendParkingAreaWarp(uint32_t placeID, uint8_t gameMode)
+{
+	// 0x0482 is the client's "you have arrived somewhere" packet. SBOL_Dll's Packet0482
+	// handler reads one uint32, writes it to the client's place global at 0x006F64C0 and
+	// then warps the scene. The low 16 bits carry the place id; the high 16 bits carry the
+	// target game mode, and a zero high half keeps the original meaning (place id only,
+	// warp to MAINMENU) so the handler stays compatible with the shop warp it already does.
+	// A place id of PARKINGAREA_NO_PLACE means "nowhere", which the handler turns into the
+	// 0xFFFFFFFF the client's own junction code writes when you are not at a place.
+	outbuf.clearBuffer();
+	outbuf.setSize(0x06);
+	outbuf.setOffset(0x06);
+	outbuf.setType(0x400);
+	outbuf.setSubType(0x482);
+	outbuf.append<uint32_t>((static_cast<uint32_t>(gameMode) << 16) | (placeID & 0xFFFF));
+	Send();
+}
 void Client::SendRivalRecords()
 {
 	int32_t count = static_cast<int32_t>(inbuf.get<uint8_t>(0x04));
@@ -1751,11 +1834,12 @@ void Client::SendChatMessage(CHATTYPE type, std::string& handle, std::string& me
 	chatBuf->appendString(message, 0x4E);
 	if (license != 0)
 	{
-		if(course != nullptr) course->sendToClient(chatBuf, license);
-		else if(license == driverslicense) Send();
+		if (parkingArea != nullptr) parkingArea->sendToClient(chatBuf, license);
+		else if (course != nullptr) course->sendToClient(chatBuf, license);
+		else if (license == driverslicense) Send();
 	}
 	else
-		SendToCourse();
+		SendToArea();
 }
 void Client::SendTeamChatMessage(std::string& fromHandle, std::string& message, uint32_t teamID)
 {
@@ -1787,11 +1871,31 @@ void Client::SendAnnounceMessage(std::string& message, uint32_t colour, uint32_t
 	chatBuf->append<uint8_t>(GetBValue(colour));
 	if (license != 0)
 	{
-		if (course != nullptr) course->sendToClient(chatBuf, license);
+		if (parkingArea != nullptr) parkingArea->sendToClient(chatBuf, license);
+		else if (course != nullptr) course->sendToClient(chatBuf, license);
+		// Without a course or an area there is nothing to route through, and a reply
+		// addressed at the sender would be dropped. Command output relies on this.
+		else if (license == driverslicense) Send();
 		if (license != driverslicense) Send();
 	}
 	else
-		SendToCourse();
+		SendToArea();
+}
+void Client::SendAnnounceToArea(ParkingArea* area, std::string message, uint32_t colour, int32_t exclude)
+{
+	// Announce straight into a Parking Area. Needed because the leave path has to talk to
+	// the room after the sender has already been taken out of it.
+	if (area == nullptr) return;
+	coursebuf.clearBuffer();
+	coursebuf.setSize(0x06);
+	coursebuf.setOffset(0x06);
+	coursebuf.setType(0x600);
+	coursebuf.setSubType(0x6F0);
+	coursebuf.appendString(message, 0x4E);
+	coursebuf.append<uint8_t>(GetRValue(colour));
+	coursebuf.append<uint8_t>(GetGValue(colour));
+	coursebuf.append<uint8_t>(GetBValue(colour));
+	area->sendToArea(&coursebuf, exclude);
 }
 void Client::SendPlayerStats()
 {
@@ -2583,6 +2687,19 @@ void Client::SendToCourse(PACKET* src, bool exclude)
 	{
 		course->sendToCourse(src, exclude ? driverslicense : -1);
 	}
+}
+void Client::SendToArea(PACKET* src, bool exclude)
+{
+	// Routes a broadcast to whichever room the client is actually standing in. Used by the
+	// chat and announce paths so that a Parking Area behaves as its own channel.
+	if (src == nullptr)
+		src = &coursebuf;
+	if (parkingArea != nullptr)
+	{
+		parkingArea->sendToArea(src, exclude ? driverslicense : -1);
+		return;
+	}
+	SendToCourse(src, exclude);
 }
 void Client::SendToProximity(float x, float y, PACKET* src, bool exclude)
 {

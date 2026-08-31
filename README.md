@@ -19,6 +19,50 @@ The rival half of the same report - ROLLING GUY showing as defeated with green a
 ---------------
 OVERALL: CHECK // TODO [...] MARKS. ACT ACCORDINGLY
 ---------------
+PARKING AREAS (PA)
+
+Restored as static social rooms. Not a driveable course - the original never was one either.
+
+What the client still has: game mode 0x1F (PARKINGAREA) in the scene factory at 0x004272F0,
+12 backdrops (pa_bg001..012 in data/TEX/pa_bg.MIA), 11 place thumbnails (pa_wmp01..11 in
+data/TEX/pa_new.MIA), 7 hub icons, data/BGM/parking.ogg, the help strings (table at
+0x0064da00, entry 26 is the PA place picker) and the English lines for all of it in
+data/lang-en.json. What the SpeedMaster update deleted was the PA hub *movie* out of
+data/interface/KFD.SSS, along with the main menu's "Go to PA" button - `BID_MM_MOVE_PA`
+appears in the client's button enum but in none of the archive's 30 movies.
+
+So players are warped into mode 0x1B (MAINMENU_PA) instead, the in-PA menu variant whose
+movie does still ship. Everything the hub used to link to is still reachable from there:
+the ranking screen, Team Center, the Tuned Car Exchange and the shops.
+
+Usage, in game chat:
+
+    !pa                 list the areas and how many people are in each
+    !pa <number|name>   travel to one
+    !pa who             who else is in this one
+    !pa leave           back to the main menu
+
+Entering an area takes you off whatever course you were on, and scopes your chat to the
+room - the people in it see what you type, the drivers outside do not. Battles block travel.
+
+Names and place ids live in `SBOL Battle Server/data/parkingareas.json`, which is optional;
+without it eleven generic names are used. The place ids default to 0x09..0x13 because that
+is what the client's own junction table at 0x00444a1a assigns to these eleven places. The
+real-world names (Daikoku, Tatsumi, Heiwajima and so on) are not stored anywhere in the
+client, so they ship generic - enter each area, look at the backdrop, and rename it in the
+JSON.
+
+The warp rides on server -> client packet 0x0482, which SBOL_Dll already implemented for
+shop entry. Its handler now reads a target game mode out of the high 16 bits of the place
+field, so the same packet can reach either the shops (0x1A, the old behaviour when those
+bits are zero) or a PA (0x1B). Rebuild both the battle server and SBOL_Dll.
+
+NOT DONE: the 7-icon hub screen itself, which needs a new SWF6 movie appended to KFD.SSS,
+and other players' cars rendered in the room. The PA scene object is 0xdf0 bytes with no
+per-player array - the original never drew other people's cars either, the social side was
+the chat window and the ranking board.
+
+---------------
 KNOWN ISSUES:
 
 1) PVP/PVE Battles - randomize the rewards. CP/EXP are based on rival's level with a multiplier applied - but after beating 11 rivals the EXP rewards are identical. Since it's based on NPC level, check if there's a ladder for their levels or are they all the same? Random tickets (items) can drop, but so far they seem to be repetitive - anytime a player wins the reward is a car ticket for a Toyota Trueno.

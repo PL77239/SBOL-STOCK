@@ -10,6 +10,7 @@
 #include "rival.h"
 
 class Course;
+class ParkingArea;
 class Server;
 class Rival;
 
@@ -104,6 +105,7 @@ public:
 	Logger* logger;
 	Server* server;
 	Course* course;
+	ParkingArea* parkingArea;
 	BATTLE battle;
 #pragma endregion
 #pragma region Client rival data
@@ -171,6 +173,9 @@ public:
 	void initializeGarage();
 	void initializeTeam();
 	int32_t joinCourse();
+	bool EnterParkingArea(int32_t index);
+	void LeaveParkingArea(bool warpOut = true);
+	bool inParkingArea() { return parkingArea != nullptr; };
 	int8_t getCarCount();
 	int32_t getEmptyBay();
 	bool addCar(int32_t carID, uint32_t bay, COLOUR2 colour);
@@ -244,6 +249,7 @@ public:
 	void SendAuthError(uint8_t cmd);
 	void SendCareerRecord();
 	void SendCourseJoin(uint8_t notify = 1);
+	void SendParkingAreaWarp(uint32_t placeID, uint8_t gameMode);
 	void SendRivalRecords();
 	void SendRivalJoin();
 	void SendRivalJoin(Rival& rival);
@@ -256,6 +262,7 @@ public:
 	void SendChatMessage(CHATTYPE type, std::string& handle, std::string& message, uint32_t license = NULL, std::string& fromHandle = std::string(""));
 	void SendTeamChatMessage(std::string& fromHandle, std::string& message, uint32_t teamID = 0);
 	void SendAnnounceMessage(std::string& message, uint32_t colour = 0xFFFFFF, uint32_t license = NULL);
+	void SendAnnounceToArea(ParkingArea* area, std::string message, uint32_t colour = 0xFFFFFF, int32_t exclude = -1);
 	void SendPlayerStats();
 	void SendItems();
 	void SendSigns();
@@ -291,6 +298,7 @@ public:
 	void clearSendQueue();
 	void Send(PACKET* src = nullptr);
 	void SendToCourse(PACKET* src = nullptr, bool exclude = false);
+	void SendToArea(PACKET* src = nullptr, bool exclude = false);
 	void SendToProximity(float x, float y, PACKET* src = nullptr, bool exclude = false);
 	void SendToOpponent(PACKET* src = nullptr);
 	void packetEnable(uint32_t packetType);
