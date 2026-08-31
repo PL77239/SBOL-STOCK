@@ -64,7 +64,10 @@ void ManagementPacketClientAuth(Client* client)
 				client->driverslicense = license;
 				server->addAuthenticatedClient(license);
 				std::string handle = client->serverbuf.getStringA(0x10);
-				client->careerdata.CP = client->serverbuf.get<int64_t>();
+				// setCP rather than a raw assignment: accounts saved by the old giveCP() hold
+				// _I64_MAX, which the client can only show as the 999,999,999 cap. Clamping on load
+				// brings those balances back into a range the game can actually render.
+				client->setCP(client->serverbuf.get<int64_t>());
 				client->careerdata.level = client->serverbuf.get<uint8_t>();
 				client->careerdata.experiencePoints = client->serverbuf.get<uint32_t>();
 				client->careerdata.level = client->getLevel();
@@ -151,11 +154,25 @@ void ManagementPacketClientAuth(Client* client)
 							uint8_t bay = client->serverbuf.get<uint8_t>();
 							uint32_t carID = client->serverbuf.get<uint32_t>();
 							if (client->isValidCar(carID) == false) carID = Server::CARLIST::AE86_L_3_1985; // Replace invalid car with AE86 as they may only have 1 car and don't want to be left without a car.
-							client->garagedata.car[bay].carID = carID;
-							client->garagedata.car[bay].KMs = client->serverbuf.get<float>();
-							client->serverbuf.getArray((uint8_t*)&client->garagedata.car[bay].carMods, sizeof(CARMODS));
-							client->serverbuf.getArray((uint8_t*)&client->garagedata.car[bay].parts, sizeof(PARTS));
-							client->garagedata.car[bay].engineCondition = client->serverbuf.get<uint32_t>();
+							// initializeGarage sizes the vector to GARAGE_LIMIT. A bay outside that
+							// range (a bad row in garage_data, or a record that arrived misaligned)
+							// used to be written straight past the end of the vector. Read the record
+							// out of the packet either way so the following cars stay aligned, then
+							// throw it away.
+							CAR discard = { 0 };
+							CAR& car = (bay < client->garagedata.car.size()) ? client->garagedata.car[bay] : discard;
+							if (bay >= client->garagedata.car.size())
+							{
+								client->logger->Log(Logger::LOGTYPE_ERROR, L"Client %u loaded a car in out of range bay %u. Ignoring it.",
+									client->driverslicense,
+									(uint32_t)bay
+								);
+							}
+							car.carID = carID;
+							car.KMs = client->serverbuf.get<float>();
+							client->serverbuf.getArray((uint8_t*)&car.carMods, sizeof(CARMODS));
+							client->serverbuf.getArray((uint8_t*)&car.parts, sizeof(PARTS));
+							car.engineCondition = client->serverbuf.get<uint32_t>();
 						}
 
 						uint32_t itemCount = client->serverbuf.get<uint32_t>();

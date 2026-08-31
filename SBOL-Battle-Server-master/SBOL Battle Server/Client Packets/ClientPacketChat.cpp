@@ -199,12 +199,13 @@ void ClientPacketChat(Client* client)
 					}
 					else if (command[1].compare("cp") == 0)
 					{
-						uint64_t cp = 1000;
+						int64_t cp = 1000;
 						if (command.size() > 2) cp = atoll(command[2].c_str());
-						client->takeCP(client->getCP());
-						client->giveCP(cp);
+						// setCP instead of takeCP + giveCP: giveCP ignores 0 now, so the old pair
+						// could not clear a balance down to nothing.
+						client->setCP(cp);
 						std::stringstream ss;
-						ss << "Set " << cp << " CP";
+						ss << "Set " << client->getCP() << " CP";
 						client->SendAnnounceMessage(ss.str(), RGB(50, 100, 250), client->driverslicense);
 						client->SendPlayerStats();
 						return;

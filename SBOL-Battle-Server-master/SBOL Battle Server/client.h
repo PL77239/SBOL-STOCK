@@ -94,6 +94,11 @@ public:
 		bool isNPC;
 		float KMs;
 		int32_t spCount;
+		// Rewards are rolled once when the battle is processed and then replayed into the
+		// result packet. Rolling them twice would show the player numbers that were never banked.
+		uint32_t rewardExp;
+		uint32_t rewardCP;
+		int16_t rewardItem;
 	} BATTLE;
 #pragma region Client Class Pointers
 	Logger* logger;
@@ -181,6 +186,7 @@ public:
 	bool enoughCP(int64_t price);
 	void takeCP(int64_t price);
 	void giveCP(int64_t cp);
+	void setCP(int64_t cp);
 	uint32_t calculateOverhaul(uint32_t bay);
 	uint16_t getShopPartPrice(uint32_t bay, uint8_t itemCategory, uint8_t itemType, uint32_t itemID);
 	uint16_t getShopPartPriceFromID(uint32_t carID, uint8_t itemCategory, uint8_t itemType, uint32_t itemID);
@@ -188,7 +194,7 @@ public:
 	bool equipPart(uint32_t bay, uint8_t itemCategory, uint8_t itemType, uint32_t itemID);
 	bool confirmClass(uint32_t bay, CARCLASS carClass);
 	uint8_t getCarClass(int32_t bay = -1);
-	void addItem(int16_t itemID);
+	bool addItem(int16_t itemID);
 	bool removeItem(uint16_t itemID);
 	bool hasItem(uint16_t itemID);
 	bool isValidItem(uint16_t itemID);
@@ -213,6 +219,9 @@ public:
 	void getRivals();
 	void clearRivals();
 	void setRivalStatus(uint32_t TeamID, uint8_t MemberID, uint8_t Status);
+	uint8_t getRivalStatus(Rival* rival);
+	uint8_t getRivalArrowFlags(Rival* rival);
+	bool hasBeatenRival(Rival* rival);
 	int32_t getSign(uint16_t id);
 	void enableSign(uint16_t id);
 	void disableSign(uint16_t id);
@@ -237,6 +246,8 @@ public:
 	void SendCourseJoin(uint8_t notify = 1);
 	void SendRivalRecords();
 	void SendRivalJoin();
+	void SendRivalJoin(Rival& rival);
+	void SendRivalRefresh(Rival* rival);
 	void SendRivalPosition();
 	void SendRemoveRivals();
 	void SendPositionBrief();

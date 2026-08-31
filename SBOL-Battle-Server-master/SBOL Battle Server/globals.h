@@ -30,11 +30,14 @@
 #define BATTLE_TIMEOUT			60
 #define INITIALBATTLE_SP		5000000
 #define Rival_AUTOPILOT_SPEED	12
+#define REWARD_VARIANCE			0.15f		// +/- 15% randomisation applied to battle CP/EXP rewards
+#define PARTTICKET_CHANCE		25.0f		// % chance of a part ticket when the car ticket roll fails
 #define POSITION_ACCURACY		10
 #define PACKETSEND_LIMIT		10
 
 // Limits
 #define LEVEL_CAP				50
+#define CP_LIMIT				999999999LL	// Highest balance the client can render. Above this it prints the 999,999,999 cap.
 #define SERVER_LIMIT			100
 #define COURSE_COUNT			9
 #define COURSE_PLAYER_LIMIT		200

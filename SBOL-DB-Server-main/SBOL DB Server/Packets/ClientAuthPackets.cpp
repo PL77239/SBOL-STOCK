@@ -65,17 +65,20 @@ void ClientAuth(CLIENT* client)
 				if (activecar == "NULL" || activecar == "") activecar = "-1";
 				if (teamid == "NULL" || teamid == "") teamid = "-1";
 				if (teamarea == "NULL" || teamid == "") teamarea = "0";
-				if (licenseNo == "") licenseNo = "-1";
-				if (cp == "") cp = "0";
-				if (level == "") level = "0";
-				if (points == "") points = "0";
-				if (playerwin == "") playerwin = "0";
-				if (playerlose == "") playerlose = "0";
-				if (rivalwin == "") rivalwin = "0";
-				if (rivallose == "") rivallose = "0";
-				if (privileges == "") privileges = "0";
-				if (state == "") state = "0";
-				if (notbeginner == "") notbeginner = "0";
+				// GetValue hands back the literal string "NULL" for a NULL column, which stoul /
+				// stoull throw on. Treat it the same as an empty value everywhere, not just for the
+				// handful of columns that were already checked for it.
+				if (licenseNo == "" || licenseNo == "NULL") licenseNo = "-1";
+				if (cp == "" || cp == "NULL") cp = "0";
+				if (level == "" || level == "NULL") level = "0";
+				if (points == "" || points == "NULL") points = "0";
+				if (playerwin == "" || playerwin == "NULL") playerwin = "0";
+				if (playerlose == "" || playerlose == "NULL") playerlose = "0";
+				if (rivalwin == "" || rivalwin == "NULL") rivalwin = "0";
+				if (rivallose == "" || rivallose == "NULL") rivallose = "0";
+				if (privileges == "" || privileges == "NULL") privileges = "0";
+				if (state == "" || state == "NULL") state = "0";
+				if (notbeginner == "" || notbeginner == "NULL") notbeginner = "0";
 				if (garagecount == "NULL") garagecount = "0";
 				if (garagecount == "") garagecount = "0";
 
@@ -222,7 +225,12 @@ void ClientAuth(CLIENT* client)
 								client->outbuf.append<uint8_t>(static_cast<uint8_t>(stoul(bay)));
 								client->outbuf.append<uint32_t>(stoul(carID));
 								client->outbuf.append<float>(stof(KMs));
-								client->outbuf.appendArray(_carData, carData.size);
+								// Always 96 + 91 bytes, never carData.size: the battle server reads a
+								// fixed size record here, so a blob that is short or long shifts every
+								// field after it (items, signs, team data) out of alignment. _carData is
+								// calloc'd and only the first min(size, 96 + 91) bytes were copied in,
+								// so a short blob is already zero padded.
+								client->outbuf.appendArray(_carData, 96 + 91);
 								client->outbuf.append<uint32_t>(stoul(condition));
 
 								free(_carData);

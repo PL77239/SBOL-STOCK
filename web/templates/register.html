@@ -1,0 +1,37 @@
+<h2>Create an account</h2>
+<p class="lead">
+  Registering gives you a driver's license for this server. You pick your
+  in-game driver name the first time you log in, not here.
+</p>
+{{errors}}
+<form method="post" action="/register" autocomplete="off" novalidate>
+  <input type="hidden" name="csrf" value="{{csrf}}">
+  <input type="hidden" name="ts" value="{{ts}}">
+  <div class="hp" aria-hidden="true">
+    <label>Leave this field empty<input type="text" name="website" tabindex="-1" autocomplete="off"></label>
+  </div>
+
+  <label for="username">Username</label>
+  <input id="username" name="username" value="{{username}}" maxlength="20" required
+         spellcheck="false" autocapitalize="none">
+  <p class="hint">3&ndash;20 characters. Letters, numbers, <code>_</code> and <code>-</code> only.
+     This is your login name, not your driver name.</p>
+
+  <label for="email">Email</label>
+  <input id="email" name="email" type="email" value="{{email}}" maxlength="254" required>
+  <p class="hint">Used only for account recovery by the operator.</p>
+
+  <label for="password">Password</label>
+  <input id="password" name="password" type="password" maxlength="32" required>
+  <p class="hint">8&ndash;32 characters.</p>
+
+  <label for="confirm">Confirm password</label>
+  <input id="confirm" name="confirm" type="password" maxlength="32" required>
+
+  <button type="submit">Create account</button>
+</form>
+<p class="note">
+  <strong>Note on password storage.</strong> The 2002 game client dictates an
+  unsalted SHA-256 scheme that cannot be changed without breaking login. Please
+  do not reuse a password from anywhere else.
+</p>

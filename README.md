@@ -14,21 +14,22 @@ Team Area/Center is half-baked in the vsproj, but setting teams up required doin
 - MPS-Blowfish:       This deciphers the MPS.
 - Offline.dll:        This file has to be deleted in order to play online. Has a lot of fixes (like only 2 cars to choose from when starting as a new player, survival arena as an endurance race etc.) 
 ---------------
-URGENT TO CHECK/FIX; - there's currently a bug where there's too much data being saved (?), and the player's CP count turns to -1 every time. Since the game can't read that number, it throws a balance of 999,999,999CP at each login. 
+FIXED - the CP balance sticking at 999,999,999. Reported as: CP turns to -1, the game shows a 999,999,999 balance at each login, after one win it reads "win: 35CP, total: 34CP", it rises again on the next win, then jumps back to 999,999,999 on returning to the garage or entering a new course. Cause: `Client::giveCP` treated a reward of 0 as an overflow and set the balance to `_I64_MAX`, and `Rival::LoseCP` returns 0 for any battle shorter than a kilometre, so a single short loss broke the account for good. The number was never actually -1: the client renders anything from 1,000,000,000 up as the 999,999,999 cap, and the battle result screen adds the reward to the low 32 bits only, which is where the 34 came from. `giveCP` now ignores non-positive rewards and clamps to `CP_LIMIT` (999,999,999), and `setCP` clamps on load so accounts already broken in the database come back into a displayable range. Reset a wrecked balance with `!set cp <amount>` in game, or `UPDATE account_data SET cp = 0 WHERE license = <id>;`.
+The rival half of the same report - ROLLING GUY showing as defeated with green arrows, wins against other teams not registering in the RIVAL LIST, the arrow staying blue after a win - is fixed too, see known issue 8 below.
 ---------------
 OVERALL: CHECK // TODO [...] MARKS. ACT ACCORDINGLY
 ---------------
 KNOWN ISSUES:
 
-1) PVP/PVE Battles - randomize the rewards. CP/EXP are based on rival's level with a multiplier applied - but after beating 11 rivals the EXP rewards are identical. Since it's based on NPC level, check if there's a ladder for their levels or are they all the same? Random tickets (items) can drop, but so far they seem to be repetitive - all cars.
-2) Teams creation and their functionality - This also needs a webpage for user registration and teams creation/management. So far it can be done by commands in cmd/powershell ("SBOL Battle Server.exe" /createaccount). Database is set on SQLite. When entering TEAM CENTER, there's a message "Agree to TA Terms to continue". Presumably, these were also available on genki's webpage but there's no traces of that. 
+1) PVP/PVE Battles - randomize the rewards. CP/EXP are based on rival's level with a multiplier applied - but after beating 11 rivals the EXP rewards are identical. Since it's based on NPC level, check if there's a ladder for their levels or are they all the same? Random tickets (items) can drop, but so far they seem to be repetitive - anytime a player wins the reward is a car ticket for a Toyota Trueno.
+2) Teams creation and their functionality - This also needs a webpage for user registration and teams creation/management. Registration is now DONE - see the `web` folder for a self-service signup site and JSON API; accounts it creates are byte-identical to the CLI ones. The CLI is still there as a fallback, and note it is the DB server, not the battle server, that owns it: ("SBOL DB Server.exe" /createaccount username password email privileges). Database is set on SQLite. Teams are still open: in-game team creation actually works already (0x1201 in ClientPacketTeam.cpp), what's missing is the team list, join requests and accept-join (0x120D / 0x120F / 0x1205 are stubbed). When entering TEAM CENTER, there's a message "Agree to TA Terms to continue". Presumably, these were also available on genki's webpage but there's no traces of that. 
 3) Packets (some are unassigned)
      - On the online version when you leave beginner it connects to the server again without a password so fails to authenticate. But if you close game and login again it'll enter the main course. There's 2 calls to the 0x100 packets one for initial connect and another for reconnect. So some reason it doesn't send the packet with the password the 2nd time. Single packet send has a max size of 64k. Sometimes the client crashes with a socket error 10054, potentially due to a oversize? When compiling, there are several errors for sizing, ex. "Invalid data read from careerdata.rivalStatus: the read size is 1200, but the number of bytes read is: TeamID.". This is caused by setting hard number limits - it was implemented for debugging, but all this needs to be adressed. 
 4) Sound (BGM is too loud, and car sounds are inaudible regardless of ini settings). Check for compatibility if imported from games like Tokyo Xtreme Racer 0.
 5) When in SAFEMODE, after switching tabs to other than the game it tends to still catch the keypresses causing the car to constantly hit/spin
 6) Create a short functionality documentation based on packets (what is responsible for what action)
 7) EXP Rewards for completing time attacks based on times(for times under 4:10min)
-8) Beaten rivals (NPC) should appear in different color on the map, iirc blue arrow - not yet beaten, green - battle won, yellow - battle lost.
+8) Beaten rivals (NPC) should appear in different color on the map, iirc blue arrow - not yet beaten, green - battle won, yellow - battle lost. DONE - the 0x480 join packet's flag byte was hardcoded to 0, so every NPC stayed blue; it is now derived from the stored rival status (bit 6 green for a win, bit 7 red for a loss - the client only documents green and red, not yellow). The arrow is also refreshed at the end of an NPC battle by re-issuing the rival, since the colour is fixed at join time. Related: `Client::SendRivalRecords` read the requested team IDs with `addOffset` on a stale packet offset, so the RIVAL LIST was built from whatever bytes happened to be at that position - usually zeros, which reported every entry as team 0 (ROLLING GUY) and hid wins against every other team. It now uses `setOffset(0x05)`.
 9) NPC AI - current NPC's are very weak when it comes to their driving - there's no difficulty at all. TXR games get their fame from being difficult in battles. This needs to be changed, either by rewriting their algorythm or by importing AI's from a game like TXR0
 10) NPC ruleset/requirements/spawns: NPC's should spawn on routes according to the ones in gangs JSON file (battle server -> rivals). routeTable could be the course, like C1, and courseID could be inner/outer. NPCs have their requirements that the player has to meet in order to battle them; for gang leaders, it's (ex.) to beat all previous gang members. Wanderers (rare rivals) have their own rulesets, that should be set individually as per wanderer - ex. player has to be driving said car, or desired drivetrain, tires etc. The online version only has NPC's on C1, as their "line" was no yet recorded on other routes. They are recorded (with coordinates) in the offline.dll, which would have to be decompiled to take that data out; To create a route you need to log the junction, distance and marker values from the 0x700 packets.
 ---------------
@@ -61,3 +62,115 @@ The time attack routes A/B are similiar, but only one displays sections, time, s
 --------------
 
 Check the actual game engine limit for NPCs on track. NPCs are user-based and invisible to others, vice-versa. 
+
+--------------
+RUNNING THE REGISTRATION WEBSITE (web/)
+
+The `web` folder is a self-service signup site + JSON API, so players can make their own accounts instead of you running "SBOL DB Server.exe" /createaccount for every single person. It writes straight into the same sbol.db the DB server uses, in the exact same format, so an account made on the site works in the game immediately.
+
+Needs Python 3.8 or newer and NOTHING else. No pip install, no virtualenv, no node. It's standard library only, on purpose - one less thing to break on the server box.
+
+1) FIRST TIME SETUP
+
+Start "SBOL DB Server.exe" once and let it create sbol.db with all its tables. The website does not create the schema, it only inserts accounts into an existing database.
+
+Then, in the web folder:
+
+    copy config.example.json config.json          (cp on Linux)
+
+Open config.json and set two things:
+
+    "database"    path to sbol.db. Relative paths are resolved from the web folder,
+                  so the default "../sbol.db" already points at the repo root where
+                  the DB server puts it. Use a full path if yours lives elsewhere.
+
+    "secret_key"  generate one and paste it in:
+                      python -c "import secrets;print(secrets.token_hex(32))"
+                  If you leave it empty the server makes a temporary one at startup,
+                  which works, but every restart invalidates forms people currently
+                  have open and they get "your session expired".
+
+Everything else in the file has sane defaults, see below.
+
+2) RUNNING IT
+
+    cd web
+    python app.py
+
+Then open http://127.0.0.1:8080/ - that's the signup page. Logs go to web/log/web.log and to the console.
+
+To stop it, Ctrl+C.
+
+If you just want to poke at the site without running any of the Windows binaries, you can make an empty database with only the accounts table:
+
+    python app.py --init-db
+
+Other flags: --config <file> to point at a different config, --host and --port to override the address for a one-off run.
+
+3) CHECKING IT WORKS
+
+    curl http://127.0.0.1:8080/healthz
+
+Should give {"ok": true}. If it doesn't, it can't reach the database - check the path in config.json.
+
+Make a test account from the command line:
+
+    curl -X POST http://127.0.0.1:8080/api/register -H "Content-Type: application/json" -d "{\"username\":\"testguy\",\"password\":\"hunter2hunter2\",\"email\":\"a@b.com\"}"
+
+You get back {"ok": true, "license": N}. Now log into the game with testguy / hunter2hunter2. If that works, you're done - that's the only test that proves the whole chain.
+
+Run the test suite any time with:
+
+    cd web
+    python -m unittest discover -s tests -t .
+
+68 tests, takes about 15 seconds. They check the password hashing matches the C++, that the rows come out identical to CLI-made ones, and the whole HTTP surface.
+
+4) PUTTING IT ONLINE
+
+Important: this uses Python's built-in http.server. It is fine behind a proxy but it is NOT meant to sit directly on the open internet. Leave "host" as 127.0.0.1 and put a real web server in front of it for HTTPS. Caddy is the least effort, the whole config is:
+
+    sbol.example.com {
+        reverse_proxy 127.0.0.1:8080
+    }
+
+nginx or IIS work the same way. Once you do that, set "trusted_proxy": true in config.json so the rate limiter can see the real visitor IP from the X-Forwarded-For header.
+
+Do NOT set trusted_proxy to true if the service is reachable directly - anyone can fake that header and walk straight past the rate limits. That's why it's off by default.
+
+To keep it running on the Windows box, wrap it with NSSM or a Task Scheduler task set to "run whether user is logged on or not". On Linux, a small systemd unit.
+
+5) SPAM CONTROL
+
+Out of the box each IP gets 5 registrations per hour and 30 username checks per minute, with a server-wide ceiling of 200 signups per hour. All three are in config.json (registrations_per_hour, lookups_per_minute, global_registrations_per_hour). There's also a hidden honeypot field and a minimum form fill time, which stops the lazy bots without dragging in a captcha service.
+
+If you get hammered, drop registrations_per_hour to 1 or 2 and lower the global ceiling.
+
+Note the limits are counted in memory, so restarting the service resets them, and running more than one copy of it would multiply the effective limit.
+
+6) SHARING sbol.db WITH THE RUNNING SERVER
+
+Two programs writing one SQLite file. The website turns on WAL mode and waits up to 5 seconds if the file is locked, and it only holds the lock for a single INSERT. Tested against a simulation of the DB server's access pattern at 20 writes a second while registering non-stop: no failures on either side.
+
+Two things to know:
+
+- WAL does not work if sbol.db is on a network share. If yours is, set "wal": false in config.json.
+- The C++ side (Database::ExecSqlite) throws away SQLite's return code, so in the unlikely event the DB server ever does lose a write to a lock, it won't tell you. Adding sqlite3_busy_timeout(sqliteDb, 5000); after the open in Database::OpenSqlite() is cheap insurance. Not urgent based on the measurements, but worth doing eventually.
+
+7) WHAT PLAYERS SEE
+
+They pick a username (3-20 chars, letters/numbers/underscore/hyphen), an email and a password. That's it. The driver name is NOT chosen on the website - that still happens in-game on first login, same as always. The confirmation page tells them to rename offline.dll and where to go from the Beginner course.
+
+Usernames are restricted to that character set because the client makes a folder per account under user/<username>/, so anything Windows won't accept as a folder name would break the client. Reserved names like CON, NUL, COM1 are blocked for the same reason.
+
+8) IF SOMETHING GOES WRONG
+
+"Database not found" on startup - the path in config.json is wrong, or the DB server hasn't been run yet to create sbol.db.
+
+"Your session expired" when submitting the form - the service restarted between loading the page and submitting it, or secret_key is empty. Set a permanent secret_key.
+
+"Your submission looked automated" - the form was submitted faster than min_form_seconds (default 2). If you're testing with curl, set min_form_seconds to 0 in config.json.
+
+Account created but the game won't accept the login - check the account exists with the right case, and remember the game truncates usernames at 20 characters. See web/README.md for the full breakdown of the storage format.
+
+Full documentation, including exactly how the password hashing and blob storage match the C++, is in web/README.md.

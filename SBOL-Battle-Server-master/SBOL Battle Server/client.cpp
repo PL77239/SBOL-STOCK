@@ -316,18 +316,33 @@ int32_t Client::setUsername(std::string& in)
 }
 bool Client::enoughCP(int64_t price)
 {
-	if (careerdata.CP - price < 0) return false;
-	else return true;
+	if (price < 0) return false;
+	return careerdata.CP >= price;
 }
 void Client::takeCP(int64_t price)
 {
-	if (careerdata.CP - price >= 0) careerdata.CP -= price;
+	if (price <= 0) return;
+	if (careerdata.CP >= price) careerdata.CP -= price;
 	else careerdata.CP = 0;
 }
 void Client::giveCP(int64_t cp)
 {
-	if((careerdata.CP + cp) > careerdata.CP) careerdata.CP += cp;
-	else careerdata.CP = _I64_MAX;
+	// A reward of 0 used to fail the old "(CP + cp) > CP" test and drop into the overflow branch,
+	// which set the balance to _I64_MAX. The client renders anything at or above 1,000,000,000 as
+	// the 999,999,999 cap, and _I64_MAX + any later reward overflows straight back to _I64_MAX, so
+	// the balance was stuck there for good. Rival::LoseCP returns 0 for any battle shorter than a
+	// kilometre, so one short loss was enough to break the account permanently.
+	if (cp <= 0) return;
+	if (cp >= CP_LIMIT || careerdata.CP > CP_LIMIT - cp) careerdata.CP = CP_LIMIT;
+	else careerdata.CP += cp;
+}
+void Client::setCP(int64_t cp)
+{
+	// Single place that decides what a valid balance is. Also used when loading an account so a
+	// value already corrupted in the database is brought back into a range the client can display.
+	if (cp < 0) careerdata.CP = 0;
+	else if (cp > CP_LIMIT) careerdata.CP = CP_LIMIT;
+	else careerdata.CP = cp;
 }
 uint32_t Client::calculateOverhaul(uint32_t bay)
 {
@@ -839,10 +854,15 @@ bool Client::purchasePart(uint32_t bay, uint8_t itemCategory, uint8_t itemType, 
 	}
 	return false;
 }
-void Client::addItem(int16_t itemID)
+bool Client::addItem(int16_t itemID)
 {
-	if(itemID >= 0)
-		itembox.push_back(itemID);
+	// The client only ever displays ITEMBOX_LIMIT items, so anything past that is lost anyway.
+	// Report the failure so callers don't tell the player about an item they never received.
+	if (itemID < 0 || itembox.size() >= ITEMBOX_LIMIT)
+		return false;
+
+	itembox.push_back(itemID);
+	return true;
 }
 bool Client::removeItem(uint16_t itemID)
 {
@@ -949,9 +969,33 @@ void Client::processBattleWin()
 	{
 		if (currentRival)
 		{
-			addExp(currentRival->WinXP(battle.KMs, battle.SP));
-			giveCP(currentRival->WinCP(battle.KMs));
-			addItem(currentRival->WinReward());
+			// Roll the rewards once here and keep them. SendBattleNPCFinish replays these values
+			// into the result packet instead of re-rolling them.
+			bool firsttime = (hasBeatenRival(currentRival) == false);
+
+			battle.rewardExp = currentRival->WinXP(battle.KMs, battle.SP);
+			battle.rewardCP = currentRival->WinCP(battle.KMs, firsttime);
+
+			int16_t item = currentRival->WinReward();
+			battle.rewardItem = addItem(item) ? item : -1;
+
+			addExp(battle.rewardExp);
+			giveCP(battle.rewardCP);
+			careerdata.level = getLevel();
+
+			logger->Log(Logger::LOGTYPE_CLIENT, L"Client %s (%u / %s) with ID %u has beaten rival %u (level %u). %u Exp, %u CP, item %d. %0.2f Kms, %u SP remaining.",
+				logger->toWide(handle).c_str(),
+				driverslicense,
+				logger->toWide((char*)&IP_Address).c_str(),
+				courseID,
+				currentRival->GetRivalID(),
+				currentRival->GetLevel(),
+				battle.rewardExp,
+				battle.rewardCP,
+				battle.rewardItem,
+				battle.KMs,
+				battle.SP);
+
 			if (careerdata.rivalWin < 0xFFFF)
 				careerdata.rivalWin++;
 			if(currentRival->GetCustom() == false)
@@ -986,9 +1030,16 @@ void Client::processBattleLose()
 	{
 		if (currentRival)
 		{
-			addExp(currentRival->LoseXP());
-			giveCP(currentRival->LoseCP(battle.KMs));
-			addItem(currentRival->LoseReward());
+			battle.rewardExp = currentRival->LoseXP(battle.KMs);
+			battle.rewardCP = currentRival->LoseCP(battle.KMs);
+
+			int16_t item = currentRival->LoseReward();
+			battle.rewardItem = addItem(item) ? item : -1;
+
+			addExp(battle.rewardExp);
+			giveCP(battle.rewardCP);
+			careerdata.level = getLevel();
+
 			if (careerdata.rivalLose < 0xFFFF)
 				careerdata.rivalLose++;
 			if (currentRival->GetCustom() == false)
@@ -1090,6 +1141,9 @@ void Client::clearBattle()
 	battle.timeout = 0;
 	battle.challenger = nullptr;
 	battle.initiator = false;
+	battle.rewardExp = 0;
+	battle.rewardCP = 0;
+	battle.rewardItem = -1;
 	if (currentRival != nullptr)
 		currentRival = nullptr;
 }
@@ -1183,7 +1237,12 @@ void Client::clearRivals()
 }
 void Client::setRivalStatus(uint32_t TeamID, uint8_t MemberID, uint8_t Status)
 {
-	if (TeamID > (sizeof(careerdata.rivalStatus) / sizeof(RIVAL_STATUS)) || MemberID > 7 || (currentRival && currentRival->GetCustom()))
+	// Member IDs in the rival files are unique across the whole set (LITTLE GANG is 24 - 31, not
+	// 0 - 7), so they have to be reduced to the in team slot, exactly as the rivalID is built in
+	// LoadRivalFile. Rejecting MemberID > 7 here meant nothing above team 0 was ever recorded.
+	MemberID %= 8;
+
+	if (TeamID >= (sizeof(careerdata.rivalStatus) / sizeof(RIVAL_STATUS)) || (currentRival && currentRival->GetCustom()))
 		return;
 
 	if (Status == Rival::RIVALSTATUS::RS_WON)
@@ -1192,6 +1251,38 @@ void Client::setRivalStatus(uint32_t TeamID, uint8_t MemberID, uint8_t Status)
 	if ((careerdata.rivalStatus[TeamID].rivalMember[MemberID] != Rival::RIVALSTATUS::RS_WON) ||
 		(careerdata.rivalStatus[TeamID].rivalMember[MemberID] == Rival::RIVALSTATUS::RS_HIDDEN && Status == Rival::RIVALSTATUS::RS_SHOW))
 		careerdata.rivalStatus[TeamID].rivalMember[MemberID] = Status;
+}
+uint8_t Client::getRivalStatus(Rival* rival)
+{
+	if (rival == nullptr || rival->GetCustom())
+		return Rival::RIVALSTATUS::RS_HIDDEN;
+
+	uint32_t teamID = rival->GetTeamData().teamID;
+	uint8_t memberID = (uint8_t)(rival->GetTeamData().memberID % 8);
+
+	if (teamID >= (sizeof(careerdata.rivalStatus) / sizeof(RIVAL_STATUS)))
+		return Rival::RIVALSTATUS::RS_HIDDEN;
+
+	return careerdata.rivalStatus[teamID].rivalMember[memberID];
+}
+uint8_t Client::getRivalArrowFlags(Rival* rival)
+{
+	// Flags byte of the 0x480 join packet: bit 6 turns the map arrow green, bit 7 turns it red.
+	// Without this every rival joined with 0 and stayed on the default blue arrow no matter how
+	// many times the player had already raced them.
+	switch (getRivalStatus(rival))
+	{
+	case Rival::RIVALSTATUS::RS_WON:
+		return 0x40;
+	case Rival::RIVALSTATUS::RS_LOST:
+		return 0x80;
+	default:
+		return 0x00;
+	}
+}
+bool Client::hasBeatenRival(Rival* rival)
+{
+	return getRivalStatus(rival) == Rival::RIVALSTATUS::RS_WON;
 }
 int32_t Client::getSign(uint16_t id)
 {
@@ -1430,7 +1521,11 @@ void Client::SendRivalRecords()
 	outbuf.append<uint8_t>(count); // Rival count should be 0x64 as even removed rival ID's are processed
 
 	uint8_t status_remaps[] = { 3, 0, 1, 2 };
-	inbuf.addOffset(0x05);
+	// addOffset advanced whatever pOffset the previous packet happened to leave behind - inbound
+	// packets are placed with setArray, which never resets it - so the team IDs below were read
+	// from an arbitrary point in the buffer. Every other client packet handler sets the offset
+	// outright, and the team ID list starts at 0x05 (0x04 holds the count).
+	inbuf.setOffset(0x05);
 	for (int32_t i = 0; i < count; i++)
 	{
 		uint32_t currentID = inbuf.get<uint32_t>();
@@ -1474,39 +1569,56 @@ void Client::SendRivalJoin()
 	//return;
 	if (rivals.size() == 0) return;
 
-	for (auto& rival : rivals)
-	{
-		outbuf.clearBuffer();
-		outbuf.setSize(0x06);
-		outbuf.setOffset(0x06);
-		outbuf.setType(0x400);
-		outbuf.setSubType(0x480);
-		outbuf.append<uint16_t>(rival.GetID()); //ID
-		outbuf.appendString(std::string(rival.GetName()), 0x10); // Rival Name
-		outbuf.append<uint32_t>(timeGetTime()); // Time maybe ????
-		outbuf.append<uint8_t>(rival.GetLevel()); // Level
-		outbuf.append<uint32_t>(0, false); // ????
-		outbuf.append<int32_t>(rival.GetCar(), false); // Car ID
-		outbuf.appendArray((uint8_t*)rival.GetCarModsPtr(), sizeof(CARMODS) - sizeof(CARMODS::tuner)); // Rivals don't have tuner names
-		outbuf.appendArray((uint8_t*)rival.GetCarSettingsPtr(), sizeof(CARSETTINGS)); // Car Settings
-		outbuf.append<uint16_t>(0); // ???
-		outbuf.append<uint16_t>(rival.GetPosition().location1, false); // Junction
-		outbuf.append<uint16_t>(rival.GetPosition().location2, false); // Distance
-		outbuf.append<uint16_t>(rival.GetPosition().location3, false); // ???
-		outbuf.append<uint16_t>(0xFFFF, false); // Set 0xFFFF to auto place in area
-		outbuf.append<uint8_t>(2); // npc stuff must be below 0x20. 0x00 = Self, 0x01 = Player, 0x02 = NPC
-		// TODO: Has rival been beaten or lost to?
-		outbuf.append<uint8_t>(0); // 1st bit arrow is flashin (if player), 7th bit arrow is green, 8th bit arrow is red
-		outbuf.append<uint16_t>(0, false); // 1st bit car is in safe mode, When 3rd bit set car is transparent
-		outbuf.append<uint8_t>(0); // ???? 
-		outbuf.append<uint8_t>(0); // ????
-		// 0x6C byte array - Team Data
-		outbuf.appendArray((uint8_t*)rival.GetTeamDataPtr(), sizeof(TEAMDATA));
-		outbuf.append<uint8_t>(0); // If set with player notification of player entering is displayed.
-		outbuf.append<uint16_t>(0); // Count for something requires the shorts as many as these
-		outbuf.append<uint32_t>(0); // Icon next to name. if player.
-		Send();
-	}
+	for (auto& rival : rivals) SendRivalJoin(rival);
+}
+void Client::SendRivalJoin(Rival& rival)
+{
+	outbuf.clearBuffer();
+	outbuf.setSize(0x06);
+	outbuf.setOffset(0x06);
+	outbuf.setType(0x400);
+	outbuf.setSubType(0x480);
+	outbuf.append<uint16_t>(rival.GetID()); //ID
+	outbuf.appendString(std::string(rival.GetName()), 0x10); // Rival Name
+	outbuf.append<uint32_t>(timeGetTime()); // Time maybe ????
+	outbuf.append<uint8_t>(rival.GetLevel()); // Level
+	outbuf.append<uint32_t>(0, false); // ????
+	outbuf.append<int32_t>(rival.GetCar(), false); // Car ID
+	outbuf.appendArray((uint8_t*)rival.GetCarModsPtr(), sizeof(CARMODS) - sizeof(CARMODS::tuner)); // Rivals don't have tuner names
+	outbuf.appendArray((uint8_t*)rival.GetCarSettingsPtr(), sizeof(CARSETTINGS)); // Car Settings
+	outbuf.append<uint16_t>(0); // ???
+	outbuf.append<uint16_t>(rival.GetPosition().location1, false); // Junction
+	outbuf.append<uint16_t>(rival.GetPosition().location2, false); // Distance
+	outbuf.append<uint16_t>(rival.GetPosition().location3, false); // ???
+	outbuf.append<uint16_t>(0xFFFF, false); // Set 0xFFFF to auto place in area
+	outbuf.append<uint8_t>(2); // npc stuff must be below 0x20. 0x00 = Self, 0x01 = Player, 0x02 = NPC
+	outbuf.append<uint8_t>(getRivalArrowFlags(&rival)); // 1st bit arrow is flashin (if player), 7th bit arrow is green, 8th bit arrow is red
+	outbuf.append<uint16_t>(0, false); // 1st bit car is in safe mode, When 3rd bit set car is transparent
+	outbuf.append<uint8_t>(0); // ???? 
+	outbuf.append<uint8_t>(0); // ????
+	// 0x6C byte array - Team Data
+	outbuf.appendArray((uint8_t*)rival.GetTeamDataPtr(), sizeof(TEAMDATA));
+	outbuf.append<uint8_t>(0); // If set with player notification of player entering is displayed.
+	outbuf.append<uint16_t>(0); // Count for something requires the shorts as many as these
+	outbuf.append<uint32_t>(0); // Icon next to name. if player.
+	Send();
+}
+void Client::SendRivalRefresh(Rival* rival)
+{
+	// The map arrow colour is baked into the 0x480 join packet, so a rival that changed status
+	// mid-course keeps the colour it joined with. Drop the entry and re-add it under the same ID
+	// to make the client pick up the new one.
+	if (rival == nullptr || currentCourse != COURSE_MAIN) return;
+
+	outbuf.clearBuffer();
+	outbuf.setSize(0x06);
+	outbuf.setOffset(0x06);
+	outbuf.setType(0x400);
+	outbuf.setSubType(0x481);
+	outbuf.append<uint16_t>(rival->GetID()); // ID to remove
+	Send();
+
+	SendRivalJoin(*rival);
 }
 void Client::SendPositionBrief()
 {
@@ -2170,6 +2282,9 @@ void Client::SendBattleChallengeNPC(uint16_t RivalID, uint32_t _time)
 	battle.initiator = true;
 	battle.spCount = 0;
 	battle.timeout = 0;
+	battle.rewardExp = 0;
+	battle.rewardCP = 0;
+	battle.rewardItem = -1;
 	currentRival = getRival(RivalID);
 
 	if (currentRival != nullptr)
@@ -2362,13 +2477,19 @@ void Client::SendBattleNPCFinish()
 	outbuf.setType(0x500);
 	outbuf.setSubType(0x586);
 	outbuf.append<uint8_t>(getLevel());// (battle.status == BATTLESTATUS::WON) ? 0 : 1);
-	outbuf.append<uint32_t>((battle.status == Client::BATTLESTATUS::BS_WON) ? currentRival->WinXP(battle.KMs, battle.SP) : currentRival->LoseXP(battle.KMs)); // XP Gained
+	// Rewards were rolled and banked by processBattleWin / processBattleLose above. Report those
+	// exact values - re-calling WinXP / WinCP / WinReward here would re-roll the randomisation
+	// and show the player numbers and an item that were never actually granted.
+	outbuf.append<uint32_t>(battle.rewardExp); // XP Gained
 	outbuf.append<uint8_t>(careerdata.experiencePercent); // XP Percentage
-	outbuf.append<uint32_t>((battle.status == Client::BATTLESTATUS::BS_WON) ? currentRival->WinCP(battle.KMs) : currentRival->LoseCP(battle.KMs)); // CP
+	outbuf.append<uint32_t>(battle.rewardCP); // CP
 	outbuf.append<uint32_t>(0); // ???
-	outbuf.append<int16_t>((battle.status == Client::BATTLESTATUS::BS_WON) ? currentRival->WinReward() : currentRival->LoseReward()); // Item
+	outbuf.append<int16_t>(battle.rewardItem); // Item
 	outbuf.append<uint8_t>(0); // For Survival?
 	Send();
+	// processBattleWin / processBattleLose above have just recorded the result, so re-issue the
+	// rival with its new arrow colour before clearBattle() drops the pointer.
+	SendRivalRefresh(currentRival);
 	clearBattle();
 }
 void Client::SendBattleDamage(uint32_t bay, uint32_t damage1, uint32_t damage2, uint32_t damage3, uint32_t damage4)

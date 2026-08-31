@@ -73,5 +73,6 @@ private:
 	
 	void Initialize();
 	int16_t CarTicket();
+	int16_t PartTicket();
 };
 
