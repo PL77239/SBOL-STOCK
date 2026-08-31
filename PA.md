@@ -8,3 +8,15 @@ Create one PA (where there's a "free" exit/ramp slot, like Daikoku, Tatsumi or H
 Unless you find the actual way they worked, this seems optimal. 
 There are overall 22 Courses - 1-8 are taken, 8 being EVENT and 9-21 UNKNOWN. 22 is Beginner Course (a fallback i assume). Event only works when toggled. But, since the server and db are written from ashes, all of this needs to be implemented.
 The repo also contains the client's .exe.c which should help creating packets for that.
+Therefore:
+1) OPTION A:
+   - Create one, separate garage-like instance for PA, using a single ramp/exit
+
+2) OPTION B:
+   - Create a separate course, with various PAs - Similiar to parts shop course, various ramps for various Parking Areas. Since there are a couple of PA textures (and 3D models), this would exhaust the potential in the best way. Since courses like CAR/PARTS allow multiple players, this would create a Social Room per se. 
+
+Option B seems better, but choose the one with the least probability of issues. 
+--------------
+Below links serve as reference for PAs. 
+ - https://www.4gamer.net/games/007/G000798/SS/061.jpg
+ - https://www.4gamer.net/games/007/G000798/SS/057.jpg
