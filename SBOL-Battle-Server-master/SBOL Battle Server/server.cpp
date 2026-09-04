@@ -3,6 +3,8 @@
 #include <WS2tcpip.h>
 #include "mstcpip.h"
 #include "server.h"
+#include <algorithm>
+#include <cctype>
 #ifdef _DEBUG
 #include "debug.h"
 #endif
@@ -231,6 +233,9 @@ Server::~Server()
 	if (sDAT.sdat) free(sDAT.sdat);
 	if (shopData.data) free(shopData.data);
 	if (itemData.data) free(itemData.data);
+	for (auto& pa : parkingAreas)
+		delete pa;
+	parkingAreas.clear();
 	for (uint32_t i = 0; i < COURSE_DIMENSIONS; i++)
 	{	
 		for (auto& course : courses[i])
@@ -260,8 +265,112 @@ void Server::initialize() {
 			course->setCourse(courseNum++);
 		}
 	}
+	for (auto& pa : parkingAreas)
+		delete pa;
+	parkingAreas.clear();
+	parkingAreas.resize(PARKINGAREA_COUNT);
+	for (int32_t i = 0; i < PARKINGAREA_COUNT; i++)
+	{
+		PARKINGAREA_ENTRY entry;
+		// Defaults mirror what the client already expects: place ids 0x09..0x13 in the
+		// order of the pa_wmp01..pa_wmp11 thumbnails. The real-world names are not in the
+		// binary anywhere, so they stay generic until an operator fills them in through
+		// data\parkingareas.json.
+		entry.placeID = PARKINGAREA_FIRST_PLACE + i;
+		char defaultName[32] = { 0 };
+		snprintf(&defaultName[0], sizeof(defaultName), "Parking Area %02d", i + 1);
+		entry.name = std::string(&defaultName[0]);
+
+		parkingAreas[i] = new ParkingArea();
+		parkingAreas[i]->setIndex(i);
+		parkingAreas[i]->setEntry(entry);
+		parkingAreas[i]->logger = logger;
+	}
+	LoadParkingAreaFile();
+
 	serverConnections.resize(serverClientLimit);
 	LoadRivalFile();
+}
+void Server::LoadParkingAreaFile()
+{
+	// Optional. Without the file the generic defaults set up in initialize() are used, so a
+	// missing file is not an error.
+	std::ifstream inFile(PARKINGAREA_FILENAME);
+	if (!inFile.is_open())
+	{
+		logger->Log(Logger::LOGTYPE_SERVER, L"No parking area file found, using default names and place ids.");
+		return;
+	}
+
+	json in;
+	try {
+		inFile >> in;
+	}
+	catch (json::exception ex) {
+		logger->Log(Logger::LOGTYPE_ERROR, L"JSON Parse Error %s on the parking area file.", logger->toWide(ex.what()).c_str());
+		inFile.close();
+		return;
+	}
+	catch (...) {
+		logger->Log(Logger::LOGTYPE_ERROR, L"JSON Parse Error on the parking area file.");
+		inFile.close();
+		return;
+	}
+	inFile.close();
+
+	if (in.empty() || !in["parkingareas"].is_array())
+	{
+		logger->Log(Logger::LOGTYPE_ERROR, L"Parking area file has no \"parkingareas\" array, using defaults.");
+		return;
+	}
+
+	uint32_t loaded = 0;
+	for (auto& area : in["parkingareas"])
+	{
+		try {
+			if (!area["index"].is_number_integer()) continue;
+			int32_t index = area["index"].get<int32_t>();
+			if (index < 0 || index >= PARKINGAREA_COUNT)
+			{
+				logger->Log(Logger::LOGTYPE_ERROR, L"Parking area index %d is out of range, ignoring it.", index);
+				continue;
+			}
+			PARKINGAREA_ENTRY entry;
+			entry.placeID = area.value("placeid", (uint32_t)(PARKINGAREA_FIRST_PLACE + index));
+			entry.name = area.value("name", parkingAreas[index]->getName());
+			if (entry.name.length() > 0x0F) entry.name = entry.name.substr(0, 0x0F);
+			parkingAreas[index]->setEntry(entry);
+			loaded++;
+		}
+		catch (json::exception ex) {
+			logger->Log(Logger::LOGTYPE_ERROR, L"JSON Error %s while reading a parking area entry.", logger->toWide(ex.what()).c_str());
+		}
+	}
+	logger->Log(Logger::LOGTYPE_SERVER, L"Loaded %u parking area definitions.", loaded);
+}
+ParkingArea* Server::getParkingArea(int32_t index)
+{
+	if (index < 0 || index >= (int32_t)parkingAreas.size()) return nullptr;
+	return parkingAreas[index];
+}
+int32_t Server::findParkingArea(std::string& name)
+{
+	// Accepts a 1-based number as typed in !pa, or a case insensitive name prefix.
+	if (name.length() > 0 && name.find_first_not_of("0123456789") == std::string::npos)
+	{
+		int32_t index = atoi(name.c_str()) - 1;
+		if (index >= 0 && index < (int32_t)parkingAreas.size()) return index;
+		return -1;
+	}
+	std::string needle = name;
+	std::transform(needle.begin(), needle.end(), needle.begin(), ::tolower);
+	for (uint32_t i = 0; i < parkingAreas.size(); i++)
+	{
+		std::string haystack = parkingAreas[i]->getName();
+		std::transform(haystack.begin(), haystack.end(), haystack.begin(), ::tolower);
+		if (haystack.compare(0, needle.length(), needle) == 0) return i;
+	}
+	return -1;
 }
 char* Server::HEXString(uint8_t* in, char* out, uint32_t length = 0)
 {
@@ -547,6 +656,7 @@ void Server::initialize_connection(Client* connect)
 		logger->Log(Logger::LOGTYPE_COMM, L"Client %s has disconnected.", ip.c_str());
 		logger->Log(Logger::LOGTYPE_COMM, L"Player count: %u", playerCount() - 1);
 		if(connect->course != nullptr) connect->course->removeClient(connect);
+		connect->LeaveParkingArea(false);
 		closesocket(connect->ClientSocket);
 	}
 	removeClient(connect);

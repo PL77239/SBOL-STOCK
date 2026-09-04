@@ -1,0 +1,28 @@
+{
+	"_comment": [
+		"Parking Areas: static social rooms reached with the in-game !pa command.",
+		"",
+		"index    0-based slot. Also picks the thumbnail the client shows for this place:",
+		"         index 0 is pa_wmp01 in data/TEX/pa_new.MIA, index 10 is pa_wmp11.",
+		"placeid  Written to the client's place global at 0x006F64C0 by the 0x0482 warp.",
+		"         The junction table at 0x00444a1a assigns 0x09..0x13 to these eleven",
+		"         places, so leave these alone unless you know what you are changing.",
+		"name     Shown in chat and in !pa list. Max 15 characters, longer names are cut.",
+		"",
+		"The real-world names are not stored anywhere in the client, so they ship generic.",
+		"Enter each one in game, look at the backdrop, and rename it here."
+	],
+	"parkingareas": [
+		{ "index": 0,  "placeid": 9,  "name": "Parking Area 01" },
+		{ "index": 1,  "placeid": 10, "name": "Parking Area 02" },
+		{ "index": 2,  "placeid": 11, "name": "Parking Area 03" },
+		{ "index": 3,  "placeid": 12, "name": "Parking Area 04" },
+		{ "index": 4,  "placeid": 13, "name": "Parking Area 05" },
+		{ "index": 5,  "placeid": 14, "name": "Parking Area 06" },
+		{ "index": 6,  "placeid": 15, "name": "Parking Area 07" },
+		{ "index": 7,  "placeid": 16, "name": "Parking Area 08" },
+		{ "index": 8,  "placeid": 17, "name": "Parking Area 09" },
+		{ "index": 9,  "placeid": 18, "name": "Parking Area 10" },
+		{ "index": 10, "placeid": 19, "name": "Parking Area 11" }
+	]
+}
