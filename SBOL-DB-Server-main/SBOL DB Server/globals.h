@@ -19,6 +19,13 @@
 
 #define HEARTBEAT_TIME			30
 
+// First team ID handed out to a player-created team. The client files a battle result under
+// the opponent's team ID and only treats it as a player battle when the ID is at or above
+// this value (0x0042e980); below it the result is written into that numbered rival team's row
+// of the RIVAL LIST instead. team_data used to autoincrement from 1, straight through the
+// game's own rival teams 0 - 41.
+#define PLAYER_TEAMID_BASE		10000
+
 #define DB_OK					0
 #define DB_TABLE_MISSING		1
 #define DB_ERR					255

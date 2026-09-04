@@ -650,6 +650,15 @@ int32_t Server::checkDB()
 				logger->Log(LOGTYPE_ERROR, L"team_data table is missing. Recreating");
 				res = db->Exec(SQLITE_STATEMENT_TEAM_DATA);
 				if (res != SQLITE_OK) { logger->Log(LOGTYPE_ERROR, L"unable to create team_data table with error: %u", res); return 1; }
+				// Player team IDs have to start at PLAYER_TEAMID_BASE. The client files a battle
+				// result under the opponent's team ID and treats anything below that as one of the
+				// game's own rival teams (0x0042e980), so a team numbered from 1 would have PvP
+				// results written over the ROWING GUY / ROLLING KIDS rows of the RIVAL LIST.
+				{
+					std::stringstream seq;
+					seq << "INSERT OR REPLACE INTO sqlite_sequence(name, seq) VALUES('team_data', " << (PLAYER_TEAMID_BASE - 1) << ")";
+					db->Exec(seq.str().c_str());
+				}
 				logger->Log(LOGTYPE_DATABASE, L"Created default team_data table");
 			}
 			res = db->Exec("SELECT sql FROM sqlite_master WHERE name = 'team_data'; ");
@@ -763,6 +772,12 @@ int32_t Server::checkDB()
 				db->Exec(MYSQL_STATEMENT_TEAM_DATA);
 				res = db->Exec("SHOW CREATE TABLE `team_data`;");
 				if (!res) { logger->Log(LOGTYPE_ERROR, L"unable to create team_data table with error: %s", db->Error()); return 1; }
+				// See the SQLite branch: player team IDs must not land in the rival team range.
+				{
+					std::stringstream seq;
+					seq << "ALTER TABLE `team_data` AUTO_INCREMENT = " << PLAYER_TEAMID_BASE;
+					db->Exec(seq.str().c_str());
+				}
 				logger->Log(LOGTYPE_DATABASE, L"Created default team_data table");
 			}
 			res = db->Exec("SHOW CREATE TABLE `team_data`;");

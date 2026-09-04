@@ -69,9 +69,10 @@ void SERVERPACKET::append(T in)
 template<typename T>
 void SERVERPACKET::set(T in, uint32_t offset)
 {
-	if ((pOffset + sizeof(in)) < CLIENT_BUFFER_SIZE)
+	// Writes at offset, not at pOffset - it used to ignore the argument entirely.
+	if ((offset + sizeof(in)) < CLIENT_BUFFER_SIZE)
 	{
-		*(T*)&buffer[pOffset] = in;
+		*(T*)&buffer[offset] = in;
 	}
 }
 

@@ -72,9 +72,12 @@ void PACKET::append(T in, bool SWAP)
 template<typename T>
 void PACKET::set(T in, uint32_t offset, bool SWAP)
 {
-	if ((pOffset + sizeof(in)) < CLIENT_BUFFER_SIZE)
+	// Writes at offset, not at pOffset. It used to ignore the argument and overwrite whatever
+	// the cursor happened to point at, which left every field patched up after the fact - the
+	// racer count in the 0x780 course broadcast being the only one - stuck on its placeholder.
+	if ((offset + sizeof(in)) < CLIENT_BUFFER_SIZE)
 	{
-		*(T*)&buffer[pOffset] = SWAP ? swap(in) : in;
+		*(T*)&buffer[offset] = SWAP ? swap(in) : in;
 	}
 }
 

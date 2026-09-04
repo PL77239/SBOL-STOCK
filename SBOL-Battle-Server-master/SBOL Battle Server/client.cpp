@@ -1207,6 +1207,11 @@ void Client::clearBattle()
 	battle.timeout = 0;
 	battle.challenger = nullptr;
 	battle.initiator = false;
+	// isNPC was only ever cleared by the battle timeout, so after one race against a rival it
+	// stayed set for the rest of the session and every later PvP result went down the NPC arm
+	// of processBattleWin / processBattleLose, where currentRival is null - no win recorded, no
+	// EXP, nothing saved.
+	battle.isNPC = false;
 	battle.rewardExp = 0;
 	battle.rewardCP = 0;
 	battle.rewardItem = -1;
@@ -1233,8 +1238,10 @@ void Client::getRivals()
 	// rivals db limit (how many rivals are in the database)
 	const uint32_t TOTAL_RIVALS_IN_DB = 400;
 
-	// physical npcs limit
-	const uint32_t MAX_SPAWNED_RIVALS = 40;
+	// physical npcs limit. Must not exceed COURSE_NPC_LIMIT: SetID() below hands out course
+	// IDs 0 .. MAX_SPAWNED_RIVALS - 1 out of the same ID space the players are placed in, and
+	// anything from COURSE_PLAYER_ID_BASE up collides with a player already on the course.
+	const uint32_t MAX_SPAWNED_RIVALS = COURSE_NPC_LIMIT;
 
 	uint32_t spawnedCount = 0;
 
@@ -1294,6 +1301,10 @@ void Client::getRivals()
 }
 void Client::clearRivals()
 {
+	// currentRival points into this vector. Dropping the list without clearing it leaves the
+	// battle holding a dangling pointer, which the next 0x505 would then dereference - and the
+	// list is dropped whenever the player leaves the course, battle or no battle.
+	currentRival = nullptr;
 	//for (auto& rival : rivals)
 	//{
 	//	delete rival;
@@ -1303,9 +1314,9 @@ void Client::clearRivals()
 }
 void Client::setRivalStatus(uint32_t TeamID, uint8_t MemberID, uint8_t Status)
 {
-	// Member IDs in the rival files are unique across the whole set (LITTLE GANG is 24 - 31, not
-	// 0 - 7), so they have to be reduced to the in team slot, exactly as the rivalID is built in
-	// LoadRivalFile. Rejecting MemberID > 7 here meant nothing above team 0 was ever recorded.
+	// LoadRivalFile already stores the in-team slot in TEAMDATA::memberID. Normalised again here
+	// so a rival loaded from anywhere else - or a file listing more than eight members - lands
+	// in its own team's row instead of writing over the next one.
 	MemberID %= 8;
 
 	if (TeamID >= (sizeof(careerdata.rivalStatus) / sizeof(RIVAL_STATUS)) || (currentRival && currentRival->GetCustom()))
@@ -1584,64 +1595,77 @@ void Client::SendParkingAreaWarp(uint32_t placeID, uint8_t gameMode)
 }
 void Client::SendRivalRecords()
 {
-	int32_t count = static_cast<int32_t>(inbuf.get<uint8_t>(0x04));
-	if (inbuf.getSize() < 5 + (count * sizeof(int32_t)) || count > sizeof(careerdata.rivalStatus) / sizeof(RIVAL_STATUS))
-	{
-		logger->Log(Logger::LOGTYPE_CLIENT, L"Client %s (%u / %s) has sent invalid 0xC01 packet.",
+	// Request: [size:2][type:2][count:1][team id:4] * count. The client sweeps its whole record
+	// table, so count is normally 0x64 - removed team IDs are asked about too.
+	const uint32_t RIVALSTATUS_COUNT = sizeof(careerdata.rivalStatus) / sizeof(RIVAL_STATUS);
+	const uint32_t REQUEST_TEAMIDS = 0x05;
+	const uint8_t STATUS_REMAP[4] = { 3, 0, 1, 2 };	// server RS_* -> client 0 seen, 1 lost, 2 won, 3 hidden
+
+	uint32_t count = inbuf.get<uint8_t>(0x04);
+	if (inbuf.getSize() < REQUEST_TEAMIDS + (count * sizeof(uint32_t)))
+	{	// Short packet - answering it would read team IDs out of stale buffer contents.
+		logger->Log(Logger::LOGTYPE_CLIENT, L"Client %s (%u / %s) has sent a truncated 0xC01 packet. %u IDs requested in %u bytes.",
 			logger->toWide(handle).c_str(),
 			driverslicense,
-			logger->toWide((char*)&IP_Address).c_str()
+			logger->toWide((char*)&IP_Address).c_str(),
+			count,
+			inbuf.getSize()
 		);
-		Disconnect();
 		return;
 	}
+
 	outbuf.clearBuffer();
 	outbuf.setSize(0x06);
 	outbuf.setOffset(0x06);
 	outbuf.setType(0xC00);
 	outbuf.setSubType(0xC81);
 
-	outbuf.append<uint8_t>(count); // Rival count should be 0x64 as even removed rival ID's are processed
+	outbuf.append<uint8_t>(static_cast<uint8_t>(count)); // One record per requested ID, in the order asked
 
-	uint8_t status_remaps[] = { 3, 0, 1, 2 };
 	// addOffset advanced whatever pOffset the previous packet happened to leave behind - inbound
 	// packets are placed with setArray, which never resets it - so the team IDs below were read
 	// from an arbitrary point in the buffer. Every other client packet handler sets the offset
 	// outright, and the team ID list starts at 0x05 (0x04 holds the count).
-	inbuf.setOffset(0x05);
-	for (int32_t i = 0; i < count; i++)
+	inbuf.setOffset(REQUEST_TEAMIDS);
+	bool reported = false;
+	for (uint32_t i = 0; i < count; i++)
 	{
 		uint32_t currentID = inbuf.get<uint32_t>();
-		if (currentID >= sizeof(careerdata.rivalStatus) / sizeof(RIVAL_STATUS))
-		{
-			logger->Log(Logger::LOGTYPE_CLIENT, L"Client %s (%u / %s) has sent invalid 0xC01 packet.",
+		// A team ID the records have no slot for - a player team, or a client whose own copy of the
+		// table has already been corrupted - is answered as "no data" rather than by dropping the
+		// connection. Disconnecting here is what the DATA screen dying with socket error 10053 was:
+		// one bad ID killed the session, and the account had no way back short of an admin reset.
+		const RIVAL_STATUS* record = (currentID < RIVALSTATUS_COUNT) ? &careerdata.rivalStatus[currentID] : nullptr;
+		if (record == nullptr && reported == false)
+		{	// Once per request - a client whose table has gone bad sends a whole sweep of them.
+			reported = true;
+			logger->Log(Logger::LOGTYPE_CLIENT, L"Client %s (%u / %s) asked for rival records of team %u, which is outside the %u the records hold. Reported as empty.",
 				logger->toWide(handle).c_str(),
 				driverslicense,
-				logger->toWide((char*)&IP_Address).c_str()
+				logger->toWide((char*)&IP_Address).c_str(),
+				currentID,
+				RIVALSTATUS_COUNT
 			);
-			Disconnect();
-			return;
 		}
+
 		outbuf.append<uint32_t>(currentID); // Rival id. Must be loop index. Game is missing some teams.
+
 		int32_t check = 0;
-		for (int32_t j = 0; j < 8; j++) check += careerdata.rivalStatus[currentID].rivalMember[j] ? 1 : 0;
+		if (record != nullptr)
+		{
+			for (int32_t j = 0; j < 8; j++) check += record->rivalMember[j] ? 1 : 0;
+		}
 		outbuf.append<uint8_t>(check ? 0x08 : 0x00); // Team count
 		// 0 - Seen / Show
 		// 1 - Lost
 		// 2 - Won
 		// 3 - Not Seen / Hide
 		if (check)
-		{
-			outbuf.append<uint8_t>(status_remaps[careerdata.rivalStatus[currentID].rivalMember[0x00] % sizeof(status_remaps)]); // Rival 1 // Boss
-			outbuf.append<uint8_t>(status_remaps[careerdata.rivalStatus[currentID].rivalMember[0x01] % sizeof(status_remaps)]); // Rival 2
-			outbuf.append<uint8_t>(status_remaps[careerdata.rivalStatus[currentID].rivalMember[0x02] % sizeof(status_remaps)]); // Rival 3
-			outbuf.append<uint8_t>(status_remaps[careerdata.rivalStatus[currentID].rivalMember[0x03] % sizeof(status_remaps)]); // Rival 4
-			outbuf.append<uint8_t>(status_remaps[careerdata.rivalStatus[currentID].rivalMember[0x04] % sizeof(status_remaps)]); // Rival 5
-			outbuf.append<uint8_t>(status_remaps[careerdata.rivalStatus[currentID].rivalMember[0x05] % sizeof(status_remaps)]); // Rival 6
-			outbuf.append<uint8_t>(status_remaps[careerdata.rivalStatus[currentID].rivalMember[0x06] % sizeof(status_remaps)]); // Rival 7
-			outbuf.append<uint8_t>(status_remaps[careerdata.rivalStatus[currentID].rivalMember[0x07] % sizeof(status_remaps)]); // Rival 8 // Lowest
+		{	// Member 0 is the boss, member 7 the lowest. Masked because a blob restored from a save
+			// written before the member ID fix can hold values outside RIVALSTATUS.
+			for (int32_t j = 0; j < 8; j++) outbuf.append<uint8_t>(STATUS_REMAP[record->rivalMember[j] & 0x03]);
 		}
-		//outbuf.append<uint32_t>(careerdata.rivalStatus[currentID].wins); // Boss Defeats I don't think this should be the wins as there is a limit of a few hundred. Maybe unlocked members?
+		//outbuf.append<uint32_t>(record->wins); // Boss Defeats I don't think this should be the wins as there is a limit of a few hundred. Maybe unlocked members?
 		outbuf.append<uint32_t>(check);
 	}
 	Send();
@@ -2423,6 +2447,9 @@ void Client::SendBattleChallenge(uint16_t challengeID, uint16_t clientID, uint32
 	battle.SP = battle.lastSP = INITIALBATTLE_SP;
 	battle.KMs = 0.0f;
 	battle.initiator = true;
+	// This is a player battle. Say so, in case a rival battle left the flag set.
+	battle.isNPC = false;
+	currentRival = nullptr;
 	battle.spCount = 0;
 	battle.timeout = time(NULL) + BATTLE_TIMEOUT;
 
@@ -2446,6 +2473,8 @@ void Client::SendBattleChallengeToOpponent(uint16_t challengeID, uint16_t client
 	battle.challenger->battle.status = BATTLESTATUS::BS_INIT_BATTLE;
 	battle.challenger->battle.SP = battle.challenger->battle.lastSP = INITIALBATTLE_SP;
 	battle.challenger->battle.KMs = 0.0f;
+	battle.challenger->battle.isNPC = false;
+	battle.challenger->currentRival = nullptr;
 	battle.challenger->battle.spCount = 0;
 	battle.challenger->battle.timeout = time(NULL) + BATTLE_TIMEOUT;
 	battle.challenger->battle.challenger = this;

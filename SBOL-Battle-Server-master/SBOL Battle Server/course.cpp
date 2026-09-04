@@ -92,10 +92,13 @@ void Course::sendToClient(PACKET* src, int32_t driverslicense)
 }
 void Course::sendToID(PACKET* src, int16_t clientID)
 {
-	if (courseClient[clientID] == nullptr) return;
+	// clientID is a course ID, not a slot index: the slots start at COURSE_PLAYER_ID_BASE.
+	int32_t index = (int32_t)clientID - COURSE_PLAYER_ID_BASE;
+	if (index < 0 || index >= (int32_t)courseClient.size()) return;
+	if (courseClient[index] == nullptr) return;
 	uint16_t size = src->getSize();
 	if (size == 0) return;
-	courseClient[clientID]->addToSendQueue(src);
+	courseClient[index]->addToSendQueue(src);
 	return;
 }
 uint32_t Course::getClientCount()
@@ -125,7 +128,10 @@ int32_t Course::addClient(Client* in)
 		{
 			courseClient[freeClient] = in;
 			in->course = this;
-			in->courseID = freeClient + 0x10;
+			// Players sit above the block of IDs reserved for the NPCs - see COURSE_NPC_LIMIT.
+			// The base used to be a hardcoded 0x10, which was only ever big enough because
+			// getRivals() spawned 15 rivals at the time.
+			in->courseID = freeClient + COURSE_PLAYER_ID_BASE;
 		}
 	}
 	return freeClient;

@@ -1418,8 +1418,18 @@ void Server::LoadRivalFile()
 					rival.teamData.memberCount = static_cast<uint8_t>(teamSize);
 					for (auto& member : in["members"])
 					{
-						rival.teamData.memberID = member["id"].get<uint32_t>();
-						rival.rivalID = (rival.teamData.teamID * 8) + (rival.teamData.memberID % 8);
+						// "id" in the rival files is the member's index across the whole set - LITTLE GANG
+						// is 24 - 31, not 0 - 7 - but TEAMDATA::memberID goes out to the client in the 0x480
+						// join packet, and the client uses it as the slot index into that team's row of its
+						// own rival records (100 rows of 8 team ID bytes + 16 status bytes, at 0x0042e980).
+						// Anything from 16 up is refused by the arrow colour lookup at 0x0042e8f0, which is
+						// why no team past ROWING GUY ever turned green, and anything from 24 up is written
+						// straight through into the next row - the battle result handler does not range check
+						// it - trashing the team IDs the DATA screen then asks the server about. Store the
+						// in-team slot, which is what the server's own rivalStatus bookkeeping already used.
+						uint32_t memberSlot = member["id"].get<uint32_t>() % 8;
+						rival.teamData.memberID = static_cast<uint8_t>(memberSlot);
+						rival.rivalID = (rival.teamData.teamID * 8) + memberSlot;
 
 						// Rival level drives the battle EXP reward. Older rival files predate the
 						// "level" field, so fall back to 1 rather than refusing to load them.

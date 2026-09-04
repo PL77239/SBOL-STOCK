@@ -40,10 +40,23 @@
 #define CP_LIMIT				999999999LL	// Highest balance the client can render. Above this it prints the 999,999,999 cap.
 #define SERVER_LIMIT			100
 #define COURSE_COUNT			9
-#define COURSE_PLAYER_LIMIT		200
-#define COURSE_NPC_LIMIT		100
+// Course entity IDs. The client keeps one entity table per course and indexes it straight with
+// the ID out of the 0x480 join packet, so NPCs and players share one ID space and the two ranges
+// must not overlap. That table is sized from the three limits the 0x380 course info packet
+// declares - rival + liveview + player, summed by the client at 0x0043a2f0 - which is why those
+// are built from the same constants. NPCs take 0x00 .. COURSE_NPC_LIMIT - 1 and players start
+// immediately above them. A rival sharing an ID with a player is drawn as an empty car with the
+// NPC's tag over it, and flashing your lights at it takes the client down.
+#define COURSE_NPC_LIMIT		40						// Rival IDs 0x00 .. 0x27
+#define COURSE_PLAYER_ID_BASE	COURSE_NPC_LIMIT		// First ID handed out to a player
+#define COURSE_PLAYER_LIMIT		200						// Player IDs 0x28 .. 0xEF
 #define COURSE_DIMENSIONS		10
 #define GARAGE_LIMIT			12
+// First team ID a player-created team may use. The client files a battle result under the
+// opponent's team ID and only counts it as a player battle when that ID is at or above this
+// value (0x0042e980); below it the result lands in that numbered rival team's row of the
+// RIVAL LIST. The DB server seeds team_data's autoincrement from here.
+#define PLAYER_TEAMID_BASE		10000
 #define ITEMBOX_LIMIT			10
 // Parking Areas. 11 is not arbitrary: the client ships exactly 11 place thumbnails
 // (pa_wmp01..pa_wmp11 in data/TEX/pa_new.MIA) and the junction table at 0x00444a1a

@@ -81,6 +81,17 @@ void ManagementPacketClientAuth(Client* client)
 				client->privileges = client->serverbuf.get<uint8_t>();
 				client->notBeginner = (client->serverbuf.get<uint8_t>() ? true : false);
 				client->teamdata.teamID = client->serverbuf.get<uint32_t>();
+				if (client->teamdata.teamID != 0xFFFFFFFF && client->teamdata.teamID < (uint32_t)PLAYER_TEAMID_BASE)
+				{	// Left over from a database created before team_data was seeded above the rival
+					// teams. The client will file PvP results against this player into that numbered
+					// rival team's row of the RIVAL LIST. Renumber the team, see README.
+					client->logger->Log(Logger::LOGTYPE_ERROR, L"Client %s (%u) is in team %u, which collides with the game's own rival teams. Player teams must be numbered from %u.",
+						client->logger->toWide(handle).c_str(),
+						client->driverslicense,
+						client->teamdata.teamID,
+						(uint32_t)PLAYER_TEAMID_BASE
+					);
+				}
 				uint32_t flags = client->serverbuf.get<uint32_t>();
 				client->careerdata.ranking = client->serverbuf.get<uint32_t>();
 				if (flags & 1)
